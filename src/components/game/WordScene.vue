@@ -112,10 +112,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch, onUnmounted, nextTick } from 'vue'
+import { ref, computed, onMounted, watch, onUnmounted } from 'vue'
 import type { WordLevel } from '../../data/levels'
-import { getLetterAnimal, type LetterAnimal } from '../../data/letterAnimals'
-import { getLetterShape, type LetterShape } from '../../data/letterShapes'
+import { getLetterAnimal } from '../../data/letterAnimals'
 import { useGameStore } from '../../stores/game'
 
 interface Props {
@@ -197,12 +196,12 @@ const setLetterRef = (el: any, index: number) => {
 
 const getLetterStyle = (index: number) => {
   if (usedLetters.value.includes(index)) {
-    return { opacity: 0, transform: 'scale(0)', pointerEvents: 'none' }
+    return { opacity: 0, transform: 'scale(0)' }
   }
   
   // Hide the letter being dragged
   if (draggingIndex.value === index) {
-    return { opacity: 0, pointerEvents: 'none' }
+    return { opacity: 0 }
   }
   
   const pos = letterPositions.value[index]
