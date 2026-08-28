@@ -156,6 +156,7 @@ const nearSlot = ref<number | null>(null)
 const highlightSlot = ref<number | null>(null)
 const isDragging = ref(false) // Track dragging state for animation
 const letterSoundInterval = ref<number | null>(null) // For repeating letter sound
+const dragTimeout = ref<number | null>(null) // Safety timeout for drag
 
 // Letter styles: bubble, block, card, star, diamond
 const letterStyles = ['bubble', 'block', 'card', 'star', 'diamond']
@@ -397,16 +398,10 @@ const startDrag = (event: PointerEvent, index: number) => {
   dragStartY.value = event.clientY
   currentX.value = event.clientX - rect.width / 2
   currentY.value = event.clientY - rect.height / 2
-  hasDragged.value = false // Reset drag flag
+  hasDragged.value = false
   
-  // Capture pointer for smooth tracking (only on desktop)
-  if (event.pointerId !== undefined && target.setPointerCapture) {
-    try {
-      target.setPointerCapture(event.pointerId)
-    } catch (e) {
-      // Ignore on mobile
-    }
-  }
+  // Don't use setPointerCapture on mobile - it causes issues
+  // The document-level listeners will handle tracking
   
   // Start repeating letter sound
   const letter = shuffledLetters.value[index]
@@ -417,7 +412,16 @@ const startDrag = (event: PointerEvent, index: number) => {
     if (isDragging.value) {
       playLetter(letter)
     }
-  }, 800) // Repeat every 800ms
+  }, 800)
+  
+  // Safety timeout: if drag takes too long, auto-stop (5 seconds)
+  dragTimeout.value = window.setTimeout(() => {
+    if (isDragging.value) {
+      console.log('Drag timeout - auto stopping')
+      resetDragState()
+      stopLetterSound()
+    }
+  }, 5000)
 }
 
 // Pointer move
@@ -466,19 +470,70 @@ const onTouchMove = (event: TouchEvent) => {
 
 // Touch end handler for mobile
 const onTouchEnd = (event: TouchEvent) => {
-  console.log('Touch end called')
+  console.log('Touch end called, draggingIndex:', draggingIndex.value)
+  
+  // Always stop sound and animation first
+  stopLetterSound()
+  isDragging.value = false
+  
+  if (draggingIndex.value === null) {
+    console.log('No letter being dragged on touch end')
+    return
+  }
   
   // Get the last touch position
   const touch = event.changedTouches[0]
+  if (!touch) {
+    console.log('No touch found, resetting state')
+    resetDragState()
+    return
+  }
   
-  // Create a synthetic PointerEvent-like object
-  const syntheticEvent = {
-    clientX: touch.clientX,
-    clientY: touch.clientY
-  } as PointerEvent
+  const letterIndex = draggingIndex.value
+  const letter = shuffledLetters.value[letterIndex]
+  console.log('Touch end - releasing letter:', letter)
   
-  // Call the same handler as pointerup
-  onPointerUp(syntheticEvent)
+  // Calculate drag distance
+  const totalDragDistance = Math.sqrt(
+    Math.pow(touch.clientX - dragStartX.value, 2) + 
+    Math.pow(touch.clientY - dragStartY.value, 2)
+  )
+  
+  const minDragDistance = 40
+  
+  if (totalDragDistance > minDragDistance && nearSlot.value !== null) {
+    const slotIndex = nearSlot.value
+    const expectedLetter = props.word.letters[slotIndex]
+    
+    if (letter === expectedLetter) {
+      console.log('Correct placement via touch!')
+      handleCorrectPlacement(letterIndex, slotIndex)
+    } else {
+      console.log('Wrong placement via touch')
+      handleWrongPlacement(letterIndex)
+    }
+  } else {
+    console.log('Bounce back via touch')
+    handleWrongPlacement(letterIndex)
+  }
+  
+  // Reset drag state
+  resetDragState()
+}
+
+// Reset drag state helper
+const resetDragState = () => {
+  console.log('Resetting drag state')
+  draggingIndex.value = null
+  isDragging.value = false
+  nearSlot.value = null
+  hasDragged.value = false
+  
+  // Clear safety timeout
+  if (dragTimeout.value) {
+    clearTimeout(dragTimeout.value)
+    dragTimeout.value = null
+  }
 }
 
 // Check proximity to drop slots
@@ -559,11 +614,8 @@ const onPointerUp = (event: PointerEvent) => {
     handleWrongPlacement(letterIndex)
   }
   
-  // Reset drag state - this will make the floating letter disappear
-  console.log('Resetting drag state')
-  draggingIndex.value = null
-  nearSlot.value = null
-  hasDragged.value = false
+  // Reset drag state
+  resetDragState()
 }
 
 // Stop letter sound
