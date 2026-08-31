@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="collection-view">
     <!-- Top Bar -->
     <div class="top-bar">
@@ -11,11 +11,27 @@
       </div>
     </div>
     
+    <!-- Category Tabs -->
+    <div class="category-tabs">
+      <button
+        v-for="cat in allCategories"
+        :key="cat.id"
+        class="category-tab"
+        :class="{ 'active': selectedCategory === cat.id }"
+        :style="{ '--cat-color': cat.color }"
+        @click="selectedCategory = cat.id"
+      >
+        <span class="tab-emoji">{{ cat.emoji }}</span>
+        <span class="tab-name">{{ cat.name }}</span>
+        <span class="tab-count">{{ getCategoryProgress(cat.id) }}</span>
+      </button>
+    </div>
+    
     <!-- Collection Content -->
     <div class="collection-content">
       <div class="words-grid">
         <div 
-          v-for="word in words" 
+          v-for="word in filteredWords" 
           :key="word.id"
           class="word-card"
           :class="{ 'learned': isWordLearned(word.id), 'locked': !isWordLearned(word.id) }"
@@ -50,7 +66,7 @@
               <span class="play-icon">🔊</span>
               <span class="play-text">Listen</span>
             </button>
-            <button class="replay-button" @click="replayWord(selectedWord)">
+            <button v-if="isWordLearned(selectedWord.id)" class="replay-button" @click="replayWord(selectedWord)">
               <span class="play-icon">🔄</span>
               <span class="play-text">Play Again</span>
             </button>
@@ -65,16 +81,43 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useGameStore } from '../stores/game'
-import { levels } from '../data/levels'
+import { levels, categories, type Category } from '../data/levels'
 
 const router = useRouter()
 const gameStore = useGameStore()
 const selectedWord = ref<any>(null)
+const selectedCategory = ref<string>('all')
 
 // Computed properties
-const words = computed(() => levels)
+const allCategories = computed(() => {
+  return [
+    { id: 'all', name: 'All', emoji: '🌟', color: '#FFD93D' },
+    ...categories
+  ]
+})
+
+const filteredWords = computed(() => {
+  if (selectedCategory.value === 'all') {
+    return levels
+  }
+  return levels.filter(l => l.category === selectedCategory.value)
+})
+
 const learnedCount = computed(() => gameStore.completedLevels.length)
 const totalCount = computed(() => levels.length)
+
+// Get category progress
+const getCategoryProgress = (categoryId: string) => {
+  if (categoryId === 'all') {
+    return `${learnedCount.value}/${totalCount.value}`
+  }
+  const categoryWords = levels.filter(l => l.category === categoryId)
+  const learnedInCategory = categoryWords.filter((_, index) => {
+    const globalIndex = levels.findIndex(l => l.id === categoryWords[index].id)
+    return gameStore.completedLevels.includes(globalIndex)
+  })
+  return `${learnedInCategory.length}/${categoryWords.length}`
+}
 
 // Check if word is learned
 const isWordLearned = (wordId: string) => {
@@ -83,9 +126,7 @@ const isWordLearned = (wordId: string) => {
 
 // Handle word click
 const handleWordClick = (word: any) => {
-  if (isWordLearned(word.id)) {
-    selectedWord.value = word
-  }
+  selectedWord.value = word
 }
 
 // Close modal
@@ -96,7 +137,6 @@ const closeModal = () => {
 // Play word pronunciation
 const playWord = (word: string) => {
   if ('speechSynthesis' in window) {
-    // Convert to capitalized form (e.g., CAT -> Cat) so it's read as a word
     const speakWord = word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
     speechSynthesis.cancel()
     const utterance = new SpeechSynthesisUtterance(speakWord)
@@ -112,7 +152,6 @@ const playWord = (word: string) => {
 const replayWord = (word: any) => {
   const levelIndex = levels.findIndex(l => l.id === word.id)
   if (levelIndex >= 0) {
-    // Set the current level to this word and go to game
     gameStore.setCurrentLevel(levelIndex)
     closeModal()
     router.push('/game')
@@ -188,16 +227,72 @@ onMounted(() => {
   font-family: 'Comic Sans MS', cursive;
 }
 
+/* Category Tabs */
+.category-tabs {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  overflow-x: auto;
+  background: rgba(255, 255, 255, 0.2);
+  -webkit-overflow-scrolling: touch;
+}
+
+.category-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.category-tab {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 1rem;
+  background: rgba(255, 255, 255, 0.4);
+  border: 2px solid transparent;
+  border-radius: 25px;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 0.9rem;
+}
+
+.category-tab:hover {
+  background: rgba(255, 255, 255, 0.6);
+}
+
+.category-tab.active {
+  background: var(--cat-color, #FFD93D);
+  color: white;
+  border-color: var(--cat-color, #FFD93D);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
+}
+
+.tab-emoji {
+  font-size: 1.2rem;
+}
+
+.tab-name {
+  font-weight: 600;
+  font-family: 'Comic Sans MS', cursive;
+}
+
+.tab-count {
+  font-size: 0.8rem;
+  opacity: 0.8;
+  background: rgba(0, 0, 0, 0.1);
+  padding: 0.15rem 0.4rem;
+  border-radius: 10px;
+}
+
 .collection-content {
   flex: 1;
-  padding: 1.5rem;
+  padding: 1rem;
   overflow-y: auto;
 }
 
 .words-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  gap: 1.5rem;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 1rem;
   max-width: 1200px;
   margin: 0 auto;
 }
@@ -205,11 +300,11 @@ onMounted(() => {
 .word-card {
   background: rgba(255, 255, 255, 0.8);
   border-radius: 20px;
-  padding: 1.5rem;
+  padding: 1rem;
   text-align: center;
   cursor: pointer;
   transition: all 0.3s ease;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
   position: relative;
   overflow: hidden;
 }
@@ -221,41 +316,37 @@ onMounted(() => {
 
 .word-card.locked {
   background: rgba(255, 255, 255, 0.5);
-  color: #666;
+  color: #999;
 }
 
 .word-card:hover {
-  transform: translateY(-10px);
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
-}
-
-.word-card.learned:hover {
-  box-shadow: 0 20px 40px rgba(255, 107, 107, 0.3);
+  transform: translateY(-5px);
+  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.2);
 }
 
 .word-image {
-  margin-bottom: 1rem;
+  margin-bottom: 0.5rem;
 }
 
 .emoji {
-  font-size: 4rem;
+  font-size: 3rem;
 }
 
 .word-text {
-  font-size: 1.5rem;
+  font-size: 1.3rem;
   font-weight: bold;
   font-family: 'Comic Sans MS', cursive;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.3rem;
 }
 
 .word-status {
   position: absolute;
-  top: 10px;
-  right: 10px;
+  top: 8px;
+  right: 8px;
 }
 
 .status-icon {
-  font-size: 1.5rem;
+  font-size: 1.2rem;
 }
 
 /* Word Modal */
@@ -339,6 +430,13 @@ onMounted(() => {
   font-family: 'Comic Sans MS', cursive;
 }
 
+.modal-buttons {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
 .play-button {
   background: linear-gradient(45deg, #4ECDC4, #44B09E);
   border: none;
@@ -358,13 +456,6 @@ onMounted(() => {
 .play-button:hover {
   transform: scale(1.05);
   box-shadow: 0 15px 40px rgba(78, 205, 196, 0.5);
-}
-
-.modal-buttons {
-  display: flex;
-  gap: 1rem;
-  justify-content: center;
-  flex-wrap: wrap;
 }
 
 .replay-button {
@@ -424,16 +515,16 @@ onMounted(() => {
   }
   
   .words-grid {
-    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-    gap: 1rem;
+    grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+    gap: 0.75rem;
   }
   
   .emoji {
-    font-size: 3rem;
+    font-size: 2.5rem;
   }
   
   .word-text {
-    font-size: 1.2rem;
+    font-size: 1.1rem;
   }
   
   .modal-title {
@@ -442,6 +533,11 @@ onMounted(() => {
   
   .modal-emoji {
     font-size: 4rem;
+  }
+  
+  .category-tab {
+    padding: 0.4rem 0.8rem;
+    font-size: 0.8rem;
   }
 }
 
@@ -455,19 +551,11 @@ onMounted(() => {
   }
   
   .words-grid {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(3, 1fr);
   }
   
   .word-card {
-    padding: 1rem;
-  }
-  
-  .emoji {
-    font-size: 2.5rem;
-  }
-  
-  .word-text {
-    font-size: 1rem;
+    padding: 0.75rem;
   }
 }
 </style>
