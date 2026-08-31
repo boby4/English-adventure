@@ -45,10 +45,16 @@
             <span class="modal-emoji">{{ selectedWord.emoji }}</span>
           </div>
           <div class="modal-sentence">{{ selectedWord.sentence }}</div>
-          <button class="play-button" @click="playWord(selectedWord.word)">
-            <span class="play-icon">🔊</span>
-            <span class="play-text">Listen</span>
-          </button>
+          <div class="modal-buttons">
+            <button class="play-button" @click="playWord(selectedWord.word)">
+              <span class="play-icon">🔊</span>
+              <span class="play-text">Listen</span>
+            </button>
+            <button class="replay-button" @click="replayWord(selectedWord)">
+              <span class="play-icon">🔄</span>
+              <span class="play-text">Play Again</span>
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -99,6 +105,17 @@ const playWord = (word: string) => {
     utterance.pitch = 1.0
     utterance.volume = 1.0
     speechSynthesis.speak(utterance)
+  }
+}
+
+// Replay a learned word
+const replayWord = (word: any) => {
+  const levelIndex = levels.findIndex(l => l.id === word.id)
+  if (levelIndex >= 0) {
+    // Set the current level to this word and go to game
+    gameStore.setCurrentLevel(levelIndex)
+    closeModal()
+    router.push('/game')
   }
 }
 
@@ -341,6 +358,34 @@ onMounted(() => {
 .play-button:hover {
   transform: scale(1.05);
   box-shadow: 0 15px 40px rgba(78, 205, 196, 0.5);
+}
+
+.modal-buttons {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.replay-button {
+  background: linear-gradient(45deg, #FF6B6B, #FF8E53);
+  border: none;
+  border-radius: 50px;
+  padding: 1rem 2rem;
+  font-size: 1.2rem;
+  font-weight: bold;
+  color: white;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  box-shadow: 0 10px 30px rgba(255, 107, 107, 0.3);
+  transition: all 0.3s ease;
+}
+
+.replay-button:hover {
+  transform: scale(1.05);
+  box-shadow: 0 15px 40px rgba(255, 107, 107, 0.5);
 }
 
 .play-icon {

@@ -83,6 +83,28 @@ export const useGameStore = defineStore('game', () => {
     localStorage.removeItem('english-adventure-progress')
   }
   
+  // Get next uncompleted level index
+  function getNextUncompletedLevel(totalLevels: number): number {
+    // Find the first uncompleted level
+    for (let i = 0; i < totalLevels; i++) {
+      if (!completedLevels.value.includes(i)) {
+        return i
+      }
+    }
+    // All levels completed, return -1
+    return -1
+  }
+  
+  // Set current level to next uncompleted
+  function goToNextUncompleted(totalLevels: number) {
+    const nextLevel = getNextUncompletedLevel(totalLevels)
+    if (nextLevel >= 0) {
+      currentLevel.value = nextLevel
+      saveProgress()
+    }
+    return nextLevel
+  }
+  
   return {
     // State
     currentLevel,
@@ -103,6 +125,8 @@ export const useGameStore = defineStore('game', () => {
     setSelectedVoice,
     saveProgress,
     loadProgress,
-    resetProgress
+    resetProgress,
+    getNextUncompletedLevel,
+    goToNextUncompleted
   }
 })

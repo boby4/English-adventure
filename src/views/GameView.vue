@@ -71,10 +71,12 @@ const handleWordComplete = () => {
 // Go to next level
 const goToNextLevel = () => {
   showLevelComplete.value = false
-  if (currentLevel.value < totalLevels.value - 1) {
-    gameStore.nextLevel()
-  } else {
-    // Game completed, go to collection
+  
+  // Find next uncompleted level
+  const nextLevel = gameStore.goToNextUncompleted(totalLevels.value)
+  
+  if (nextLevel === -1) {
+    // All levels completed, go to collection
     router.push('/collection')
   }
 }
@@ -82,6 +84,13 @@ const goToNextLevel = () => {
 // Initialize game
 onMounted(() => {
   gameStore.loadProgress()
+  
+  // Start from first uncompleted level
+  const nextLevel = gameStore.goToNextUncompleted(totalLevels.value)
+  if (nextLevel === -1) {
+    // All completed, go to collection
+    router.push('/collection')
+  }
 })
 </script>
 
