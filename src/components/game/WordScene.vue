@@ -845,18 +845,20 @@ const playErrorSound = () => {
   width: 100%;
   max-width: 700px;
   margin-bottom: 0.5rem;
+  padding: 0 1rem;
 }
 
 .drop-slots {
   display: flex;
   justify-content: center;
-  gap: 3rem;
+  gap: 0.8rem;
   margin-bottom: 1rem;
+  flex-wrap: wrap;
 }
 
 .drop-slot {
-  width: 120px;
-  height: 120px;
+  width: clamp(60px, 15vw, 120px);
+  height: clamp(60px, 15vw, 120px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -869,8 +871,8 @@ const playErrorSound = () => {
 
 /* Letter image in slot */
 .slot-letter-img {
-  width: 100px;
-  height: 100px;
+  width: 80%;
+  height: 80%;
   object-fit: contain;
   transition: all 0.3s ease;
 }
@@ -939,8 +941,8 @@ const playErrorSound = () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 110px;
-  height: 110px;
+  width: clamp(70px, 18vw, 110px);
+  height: clamp(70px, 18vw, 110px);
   cursor: grab;
   z-index: 1;
   touch-action: none;
@@ -949,8 +951,8 @@ const playErrorSound = () => {
 
 /* Letter image styles */
 .letter-img {
-  width: 100px;
-  height: 100px;
+  width: 85%;
+  height: 85%;
   object-fit: contain;
   filter: drop-shadow(2px 2px 4px rgba(0, 0, 0, 0.3));
 }
@@ -961,8 +963,8 @@ const playErrorSound = () => {
 
 /* Floating letter styles */
 .floating-img {
-  width: 100px;
-  height: 100px;
+  width: clamp(70px, 18vw, 110px);
+  height: clamp(70px, 18vw, 110px);
   object-fit: contain;
   filter: drop-shadow(4px 4px 8px rgba(0, 0, 0, 0.4));
 }
