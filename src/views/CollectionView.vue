@@ -62,11 +62,11 @@
           </div>
           <div class="modal-sentence">{{ selectedWord.sentence }}</div>
           <div class="modal-buttons">
-            <button class="play-button" @click="playWord(selectedWord.word)">
+            <button class="play-button" @click.stop="playWord(selectedWord.word)">
               <span class="play-icon">🔊</span>
               <span class="play-text">Listen</span>
             </button>
-            <button v-if="isWordLearned(selectedWord.id)" class="replay-button" @click="replayWord(selectedWord)">
+            <button class="replay-button" @click.stop="replayWord(selectedWord)">
               <span class="play-icon">🔄</span>
               <span class="play-text">Play Again</span>
             </button>
@@ -150,7 +150,9 @@ const playWord = (word: string) => {
 
 // Replay a learned word
 const replayWord = (word: any) => {
+  console.log('Replay word called:', word)
   const levelIndex = levels.findIndex(l => l.id === word.id)
+  console.log('Level index:', levelIndex)
   if (levelIndex >= 0) {
     gameStore.setCurrentLevel(levelIndex)
     closeModal()
