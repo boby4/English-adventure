@@ -30,6 +30,10 @@
       
       <!-- Secondary Actions -->
       <div class="secondary-actions">
+        <button class="secondary-button" @click="goToConnect">
+          <span class="button-icon">🔗</span>
+          <span class="button-text">Connect</span>
+        </button>
         <button class="secondary-button" @click="goToCollection">
           <span class="button-icon">📚</span>
           <span class="button-text">My Words</span>
@@ -74,6 +78,11 @@ const startGame = () => {
 // Go to collection
 const goToCollection = () => {
   router.push('/collection')
+}
+
+// Go to connect game
+const goToConnect = () => {
+  router.push('/connect')
 }
 
 // Set random character animations
