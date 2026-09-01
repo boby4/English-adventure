@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="connect-grid" ref="gridRef" :style="gridStyle">
     <!-- Grid cells -->
     <div
@@ -9,7 +9,8 @@
         'obstacle': cell.isObstacle,
         'start': cell.isStart && !cell.isConnected,
         'end': cell.isEnd && !cell.isConnected,
-        'connected': cell.isConnected
+        'connected': cell.isConnected,
+        'path-highlight': isPathHighlight(cell.row, cell.col)
       }"
       :style="getCellStyle(cell)"
     >
@@ -27,16 +28,15 @@
     <!-- SVG for drawing lines -->
     <svg class="lines-svg" :width="svgWidth" :height="svgHeight">
       <!-- Completed lines -->
-      <line
-        v-for="(line, index) in completedLines"
+      <path
+        v-for="(line, index) in completedPaths"
         :key="`completed-${index}`"
-        :x1="line.x1"
-        :y1="line.y1"
-        :x2="line.x2"
-        :y2="line.y2"
+        :d="line.path"
         :stroke="line.color"
         stroke-width="8"
         stroke-linecap="round"
+        stroke-linejoin="round"
+        fill="none"
         class="completed-line"
       />
       
@@ -83,7 +83,8 @@ const isDrawing = ref(false)
 const currentStartCell = ref<{ row: number; col: number; letter: string } | null>(null)
 const currentLine = ref<{ x1: number; y1: number; x2: number; y2: number } | null>(null)
 const connectedPairs = ref<Set<string>>(new Set())
-const completedLines = ref<Array<{ x1: number; y1: number; x2: number; y2: number; color: string }>>([])
+const completedPaths = ref<Array<{ path: string; color: string; cells: Array<{row: number, col: number}> }>>([])
+const currentPathCells = ref<Array<{row: number, col: number}>>([])
 
 // Computed
 const svgWidth = computed(() => props.level.gridSize * (CELL_SIZE + CELL_GAP))
@@ -159,6 +160,123 @@ function getCellStyle(cell: any) {
   }
 }
 
+function isPathHighlight(row: number, col: number): boolean {
+  return currentPathCells.value.some(c => c.row === row && c.col === col)
+}
+
+// Check if a cell is an obstacle
+function isObstacle(row: number, col: number): boolean {
+  return props.level.obstacles.some(o => o.row === row && o.col === col)
+}
+
+// Check if a cell is already used by another connected pair
+function isCellUsedByOther(row: number, col: number, currentLetter: string): boolean {
+  for (const pathData of completedPaths.value) {
+    if (pathData.cells.some(c => c.row === row && c.col === col)) {
+      // Check if this path belongs to a different letter
+      const pathLetter = props.level.pairs.find(p => {
+        const startCell = pathData.cells[0]
+        return startCell && p.startPos.row === startCell.row && p.startPos.col === startCell.col
+      })?.letter
+      if (pathLetter && pathLetter !== currentLetter) {
+        return true
+      }
+    }
+  }
+  return false
+}
+
+// Find path between two points (simple grid-based path)
+function findPath(startRow: number, startCol: number, endRow: number, endCol: number, letter: string): Array<{row: number, col: number}> | null {
+  const path: Array<{row: number, col: number}> = []
+  let currentRow = startRow
+  let currentCol = startCol
+  
+  path.push({ row: currentRow, col: currentCol })
+  
+  // Simple approach: move horizontally first, then vertically
+  while (currentCol !== endCol || currentRow !== endRow) {
+    // Try moving horizontally first
+    if (currentCol !== endCol) {
+      const nextCol = currentCol < endCol ? currentCol + 1 : currentCol - 1
+      if (!isObstacle(currentRow, nextCol) && !isCellUsedByOther(currentRow, nextCol, letter)) {
+        currentCol = nextCol
+        path.push({ row: currentRow, col: currentCol })
+        continue
+      }
+    }
+    
+    // Try moving vertically
+    if (currentRow !== endRow) {
+      const nextRow = currentRow < endRow ? currentRow + 1 : currentRow - 1
+      if (!isObstacle(nextRow, currentCol) && !isCellUsedByOther(nextRow, currentCol, letter)) {
+        currentRow = nextRow
+        path.push({ row: currentRow, col: currentCol })
+        continue
+      }
+    }
+    
+    // If stuck, try alternative paths
+    // Try moving diagonally or finding detour
+    let found = false
+    const directions = [
+      { dr: 0, dc: 1 },
+      { dr: 0, dc: -1 },
+      { dr: 1, dc: 0 },
+      { dr: -1, dc: 0 }
+    ]
+    
+    for (const dir of directions) {
+      const nextRow = currentRow + dir.dr
+      const nextCol = currentCol + dir.dc
+      if (nextRow >= 0 && nextRow < props.level.gridSize && 
+          nextCol >= 0 && nextCol < props.level.gridSize &&
+          !isObstacle(nextRow, nextCol) && 
+          !isCellUsedByOther(nextRow, nextCol, letter) &&
+          !path.some(p => p.row === nextRow && p.col === nextCol)) {
+        currentRow = nextRow
+        currentCol = nextCol
+        path.push({ row: currentRow, col: currentCol })
+        found = true
+        break
+      }
+    }
+    
+    if (!found) return null // No valid path
+  }
+  
+  return path
+}
+
+// Generate SVG path from cell path
+function generateSvgPath(cellPath: Array<{row: number, col: number}>): string {
+  if (cellPath.length === 0) return ''
+  
+  const points = cellPath.map(cell => {
+    const center = getCellCenter(cell.row, cell.col)
+    return `${center.x},${center.y}`
+  })
+  
+  return `M ${points.join(' L ')}`
+}
+
+// Check if path passes through obstacles
+function isPathValid(startRow: number, startCol: number, endRow: number, endCol: number): boolean {
+  // Check if straight line path has obstacles
+  const minRow = Math.min(startRow, endRow)
+  const maxRow = Math.max(startRow, endRow)
+  const minCol = Math.min(startCol, endCol)
+  const maxCol = Math.max(startCol, endCol)
+  
+  for (let row = minRow; row <= maxRow; row++) {
+    for (let col = minCol; col <= maxCol; col++) {
+      if (isObstacle(row, col)) return false
+    }
+  }
+  
+  return true
+}
+
 // Event handlers
 function handlePointerDown(event: PointerEvent, cell: any) {
   if (cell.isObstacle || cell.isConnected) return
@@ -169,11 +287,11 @@ function handlePointerDown(event: PointerEvent, cell: any) {
   
   isDrawing.value = true
   currentStartCell.value = { row: cell.row, col: cell.col, letter: cell.letter }
+  currentPathCells.value = [{ row: cell.row, col: cell.col }]
   
   const center = getCellCenter(cell.row, cell.col)
   currentLine.value = { x1: center.x, y1: center.y, x2: center.x, y2: center.y }
   
-  // Add global listeners
   document.addEventListener('pointermove', onPointerMove)
   document.addEventListener('pointerup', onPointerUp)
 }
@@ -186,6 +304,20 @@ function onPointerMove(event: PointerEvent) {
   const y = event.clientY - rect.top
   
   currentLine.value = { ...currentLine.value, x2: x, y2: y }
+  
+  // Track which cells the line passes through
+  const gridSize = props.level.gridSize
+  for (let row = 0; row < gridSize; row++) {
+    for (let col = 0; col < gridSize; col++) {
+      const center = getCellCenter(row, col)
+      const distance = Math.sqrt(Math.pow(x - center.x, 2) + Math.pow(y - center.y, 2))
+      if (distance < CELL_SIZE * 0.6) {
+        if (!currentPathCells.value.some(c => c.row === row && c.col === col)) {
+          currentPathCells.value.push({ row, col })
+        }
+      }
+    }
+  }
 }
 
 function onPointerUp(event: PointerEvent) {
@@ -197,7 +329,6 @@ function onPointerUp(event: PointerEvent) {
   
   // Find which cell was dropped on
   const { gridSize, pairs } = props.level
-  let foundMatch = false
   
   for (let row = 0; row < gridSize; row++) {
     for (let col = 0; col < gridSize; col++) {
@@ -205,37 +336,39 @@ function onPointerUp(event: PointerEvent) {
       const distance = Math.sqrt(Math.pow(x - center.x, 2) + Math.pow(y - center.y, 2))
       
       if (distance < CELL_SIZE * 0.8) {
-        // Check if this is the matching end point
         const pair = pairs.find(p => p.letter === currentStartCell.value?.letter)
+        
         if (pair && pair.endPos.row === row && pair.endPos.col === col) {
-          // Success!
-          foundMatch = true
-          connectedPairs.value.add(pair.letter)
-          completedLines.value.push({
-            x1: getCellCenter(pair.startPos.row, pair.startPos.col).x,
-            y1: getCellCenter(pair.startPos.row, pair.startPos.col).y,
-            x2: getCellCenter(pair.endPos.row, pair.endPos.col).x,
-            y2: getCellCenter(pair.endPos.row, pair.endPos.col).y,
-            color: pair.color
-          })
+          // Check if path is valid (no obstacles)
+          const path = findPath(pair.startPos.row, pair.startPos.col, pair.endPos.row, pair.endPos.col, pair.letter)
           
-          // Check if all pairs connected
-          if (connectedPairs.value.size === pairs.length) {
-            setTimeout(() => emit('complete'), 1000)
+          if (path) {
+            // Success!
+            connectedPairs.value.add(pair.letter)
+            const svgPath = generateSvgPath(path)
+            completedPaths.value.push({
+              path: svgPath,
+              color: pair.color,
+              cells: path
+            })
+            
+            // Check if all pairs connected
+            if (connectedPairs.value.size === pairs.length) {
+              setTimeout(() => emit('complete'), 1500)
+            }
           }
         }
         break
       }
     }
-    if (foundMatch) break
   }
   
   // Reset drawing state
   isDrawing.value = false
   currentStartCell.value = null
   currentLine.value = null
+  currentPathCells.value = []
   
-  // Remove global listeners
   document.removeEventListener('pointermove', onPointerMove)
   document.removeEventListener('pointerup', onPointerUp)
 }
@@ -243,7 +376,7 @@ function onPointerUp(event: PointerEvent) {
 // Initialize
 onMounted(() => {
   connectedPairs.value = new Set()
-  completedLines.value = []
+  completedPaths.value = []
 })
 
 onUnmounted(() => {
@@ -276,6 +409,7 @@ onUnmounted(() => {
   background: rgba(255, 255, 255, 0.8);
   border-color: #FFD93D;
   box-shadow: 0 4px 15px rgba(255, 217, 61, 0.3);
+  animation: pulse 2s infinite;
 }
 
 .grid-cell.start .animal-icon,
@@ -285,18 +419,25 @@ onUnmounted(() => {
 
 .grid-cell.start:hover,
 .grid-cell.end:hover {
-  transform: scale(1.05);
+  transform: scale(1.1);
   box-shadow: 0 8px 25px rgba(255, 217, 61, 0.5);
 }
 
 .grid-cell.obstacle {
-  background: rgba(139, 119, 101, 0.6);
-  border-color: rgba(139, 119, 101, 0.8);
+  background: rgba(139, 119, 101, 0.7);
+  border-color: rgba(139, 119, 101, 0.9);
+  box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.2);
 }
 
 .grid-cell.connected {
   background: rgba(78, 205, 196, 0.3);
   border-color: #4ECDC4;
+  animation: none;
+}
+
+.grid-cell.path-highlight {
+  background: rgba(255, 217, 61, 0.3);
+  border-color: rgba(255, 217, 61, 0.6);
 }
 
 .animal-icon {
@@ -321,6 +462,7 @@ onUnmounted(() => {
 
 .obstacle-icon {
   font-size: 2rem;
+  opacity: 0.8;
 }
 
 .lines-svg {
@@ -339,6 +481,11 @@ onUnmounted(() => {
 .drawing-line {
   opacity: 0.7;
   animation: lineDash 0.5s linear infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { box-shadow: 0 4px 15px rgba(255, 217, 61, 0.3); }
+  50% { box-shadow: 0 4px 25px rgba(255, 217, 61, 0.6); }
 }
 
 @keyframes lineDash {
