@@ -8,6 +8,7 @@ export const useGameStore = defineStore('game', () => {
   const soundEnabled = ref(true)
   const musicEnabled = ref(true)
   const selectedVoiceName = ref('') // Store selected voice name
+  const isReplayMode = ref(false) // Track if we're replaying a specific word
   
   // Computed
   const totalStars = computed(() => completedLevels.value.length)
@@ -112,6 +113,7 @@ export const useGameStore = defineStore('game', () => {
     soundEnabled,
     musicEnabled,
     selectedVoiceName,
+    isReplayMode,
     
     // Computed
     totalStars,

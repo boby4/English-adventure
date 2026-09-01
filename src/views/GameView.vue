@@ -85,11 +85,17 @@ const goToNextLevel = () => {
 onMounted(() => {
   gameStore.loadProgress()
   
-  // Start from first uncompleted level
-  const nextLevel = gameStore.goToNextUncompleted(totalLevels.value)
-  if (nextLevel === -1) {
-    // All completed, go to collection
-    router.push('/collection')
+  // If replay mode, use the current level set by CollectionView
+  if (gameStore.isReplayMode) {
+    gameStore.isReplayMode = false
+    // Keep the current level as set by replayWord
+  } else {
+    // Start from first uncompleted level
+    const nextLevel = gameStore.goToNextUncompleted(totalLevels.value)
+    if (nextLevel === -1) {
+      // All completed, go to collection
+      router.push('/collection')
+    }
   }
 })
 </script>

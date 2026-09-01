@@ -155,6 +155,7 @@ const replayWord = (word: any) => {
   console.log('Level index:', levelIndex)
   if (levelIndex >= 0) {
     gameStore.setCurrentLevel(levelIndex)
+    gameStore.isReplayMode = true
     closeModal()
     router.push('/game')
   }
