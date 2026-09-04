@@ -190,48 +190,21 @@ class AudioManager {
     } catch (e) {}
   }
 
-  // 7. 自然拼读发音与标准发音
-  private phonicsHints: Record<string, string> = {
-    A: 'a',
-    B: 'buh',
-    C: 'kuh',
-    D: 'duh',
-    E: 'eh',
-    F: 'fff',
-    G: 'guh',
-    H: 'huh',
-    I: 'ih',
-    J: 'juh',
-    K: 'kuh',
-    L: 'lll',
-    M: 'mmm',
-    N: 'nnn',
-    O: 'ah',
-    P: 'puh',
-    Q: 'kwuh',
-    R: 'rrr',
-    S: 'sss',
-    T: 'tuh',
-    U: 'uh',
-    V: 'vvv',
-    W: 'wuh',
-    X: 'ks',
-    Y: 'yuh',
-    Z: 'zzz'
-  }
-
-  // 播放自然拼读音
-  public playPhonics(letter: string, voiceName?: string) {
+  // 7. 标准清晰的字母发音 (确保 100% 准确地道，避免拼音和怪异伪拟音)
+  public playLetter(letter: string, options: { cancel?: boolean } = {}) {
     if (!this.isSoundEnabled || !('speechSynthesis' in window)) return
     const char = letter.toUpperCase()
-    const phoneticText = this.phonicsHints[char] || char
-
-    this.speak(phoneticText, {
-      rate: 0.85,
-      pitch: 1.35,
-      cancel: true,
-      voiceName
+    // 纯正美式字母发音，单字母大写在 en-US 下发音最标准地道
+    this.speak(char, {
+      rate: 0.7,
+      pitch: 1.1,
+      cancel: options.cancel !== false
     })
+  }
+
+  // 兼容方法：播放字母发音
+  public playPhonics(letter: string, voiceName?: string) {
+    this.playLetter(letter, { cancel: true })
   }
 
   // 播放标准单词
@@ -239,7 +212,7 @@ class AudioManager {
     if (!this.isSoundEnabled || !('speechSynthesis' in window)) return
     const cleanWord = word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
     this.speak(cleanWord, {
-      rate: 0.75,
+      rate: 0.7,
       pitch: 1.05,
       cancel: true,
       voiceName
@@ -250,7 +223,7 @@ class AudioManager {
   public playSentence(sentence: string, voiceName?: string) {
     if (!this.isSoundEnabled || !('speechSynthesis' in window)) return
     this.speak(sentence, {
-      rate: 0.75,
+      rate: 0.7,
       pitch: 1.05,
       cancel: true,
       voiceName
