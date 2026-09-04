@@ -1,5 +1,5 @@
-// 单例音频管理器与自然拼读发音服务
-// 解决频繁 new AudioContext 导致的内存泄漏与浏览器静音限制
+// 单例音频管理器与发音服务
+// 解决频繁 new AudioContext 导致的内存泄漏与浏览器静音限制，提供纯正的美式发音
 
 class AudioManager {
   private ctx: AudioContext | null = null
@@ -60,11 +60,10 @@ class AudioManager {
 
     try {
       const t = ctx.currentTime
-      // Note 1
       const osc1 = ctx.createOscillator()
       const gain1 = ctx.createGain()
       osc1.type = 'triangle'
-      osc1.frequency.setValueAtTime(523.25, t) // C5
+      osc1.frequency.setValueAtTime(523.25, t)
       gain1.gain.setValueAtTime(0.18, t)
       gain1.gain.exponentialRampToValueAtTime(0.01, t + 0.12)
       osc1.connect(gain1)
@@ -72,11 +71,10 @@ class AudioManager {
       osc1.start(t)
       osc1.stop(t + 0.12)
 
-      // Note 2
       const osc2 = ctx.createOscillator()
       const gain2 = ctx.createGain()
       osc2.type = 'triangle'
-      osc2.frequency.setValueAtTime(659.25, t + 0.08) // E5
+      osc2.frequency.setValueAtTime(659.25, t + 0.08)
       gain2.gain.setValueAtTime(0.22, t + 0.08)
       gain2.gain.exponentialRampToValueAtTime(0.01, t + 0.22)
       osc2.connect(gain2)
@@ -98,7 +96,6 @@ class AudioManager {
       osc.type = 'sine'
       const t = ctx.currentTime
 
-      // 频率滑降并快速回弹
       osc.frequency.setValueAtTime(320, t)
       osc.frequency.exponentialRampToValueAtTime(160, t + 0.15)
       osc.frequency.exponentialRampToValueAtTime(240, t + 0.25)
@@ -146,7 +143,7 @@ class AudioManager {
 
     try {
       const t = ctx.currentTime
-      const notes = [523.25, 659.25, 783.99, 1046.5] // C5, E5, G5, C6
+      const notes = [523.25, 659.25, 783.99, 1046.5]
       notes.forEach((freq, idx) => {
         const osc = ctx.createOscillator()
         const gain = ctx.createGain()
@@ -175,7 +172,7 @@ class AudioManager {
       const gain = ctx.createGain()
       osc.type = 'triangle'
       const t = ctx.currentTime
-      const baseFreq = 587.33 * (1 + index * 0.2) // D5 升调
+      const baseFreq = 587.33 * (1 + index * 0.2)
 
       osc.frequency.setValueAtTime(baseFreq, t)
       osc.frequency.exponentialRampToValueAtTime(baseFreq * 1.5, t + 0.15)
@@ -190,11 +187,10 @@ class AudioManager {
     } catch (e) {}
   }
 
-  // 7. 标准清晰的字母发音 (确保 100% 准确地道，避免拼音和怪异伪拟音)
+  // 7. 标准清晰的美式英文字母发音 (100% 准确、纯正、无杂音)
   public playLetter(letter: string, options: { cancel?: boolean } = {}) {
     if (!this.isSoundEnabled || !('speechSynthesis' in window)) return
     const char = letter.toUpperCase()
-    // 纯正美式字母发音，单字母大写在 en-US 下发音最标准地道
     this.speak(char, {
       rate: 0.7,
       pitch: 1.1,
@@ -202,8 +198,8 @@ class AudioManager {
     })
   }
 
-  // 兼容方法：播放字母发音
-  public playPhonics(letter: string, voiceName?: string) {
+  // 兼容别名
+  public playPhonics(letter: string) {
     this.playLetter(letter, { cancel: true })
   }
 
@@ -286,4 +282,3 @@ class AudioManager {
 }
 
 export const audioManager = new AudioManager()
-
