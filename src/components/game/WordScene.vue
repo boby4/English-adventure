@@ -1,121 +1,131 @@
-﻿<template>
+<template>
   <div class="word-scene" ref="sceneRef">
-    <!-- Word Illustration -->
+    <!-- Top Illustration Area -->
     <div class="word-illustration">
-      <span class="word-emoji" @click="playWord">{{ word.emoji }}</span>
-      <div class="word-label">
-        {{ word.word }}
-        <button class="play-word-btn" @click="playWord" title="Play pronunciation">
-          🔊
+      <div class="emoji-wrapper" :class="[word.animation || 'bounce']" @click="handleEmojiClick">
+        <span class="word-emoji">{{ word.emoji }}</span>
+      </div>
+      <div class="word-label-bar">
+        <span class="word-label-text">{{ word.word }}</span>
+        <button class="pronounce-btn" @click="playWordAudio" title="Pronounce">
+          <span class="speaker-icon">🔊</span>
         </button>
       </div>
     </div>
-    
-    <!-- Letter Board -->
-    <div class="letter-board">
-      <!-- Drop Slots -->
-      <div class="drop-slots">
-        <div 
-          v-for="(letter, index) in word.letters" 
-          :key="`slot-${index}`"
-          class="drop-slot"
-          :class="[{ 
-            'filled': filledSlots[index],
-            'highlight': highlightSlot === index,
-            'near': nearSlot === index
-          }]"
-          :ref="(el) => setSlotRef(el, index)"
-          :data-index="index"
-        >
-          <img v-if="filledSlots[index]" :src="`/img/${letter}.png`" :alt="letter" class="slot-letter-img filled" />
-          <img v-else :src="`/img/${letter}.png`" :alt="letter" class="slot-letter-img placeholder" />
-        </div>
-      </div>
-      
-      <!-- Draggable Letters -->
-      <div class="draggable-letters">
-        <div 
-          v-for="(letter, index) in shuffledLetters" 
-          :key="`letter-${index}`"
-          class="draggable-letter"
-          :class="[{ 
-            'used': usedLetters.includes(index),
-            'dragging': draggingIndex === index,
-            'near-target': draggingIndex === index && nearSlot !== null
-          }]"
-          :ref="(el) => setLetterRef(el, index)"
-          :data-index="index"
-          :style="getLetterStyle(index)"
-          @pointerdown="startDrag($event, index)"
-        >
-          <img :src="`/img/${letter}.png`" :alt="letter" class="letter-img" />
+
+    <!-- Letter Slots Board -->
+    <div class="slots-container">
+      <div
+        v-for="(letter, index) in word.letters"
+        :key="`slot-${index}`"
+        class="slot-item"
+        :class="{
+          'filled': filledSlots[index] !== null,
+          'target-hint': hintSlotIndex === index,
+          'magnetic-near': nearSlotIndex === index
+        }"
+        :ref="el => setSlotRef(el, index)"
+      >
+        <!-- Filled Letter -->
+        <transition name="pop-in">
+          <div v-if="filledSlots[index]" class="filled-letter-wrapper">
+            <img :src="`/img/${filledSlots[index]}.png`" :alt="filledSlots[index]!" class="slot-letter-img" />
+          </div>
+        </transition>
+
+        <!-- Empty Slot Placeholder (Gentle dotted outline, no spoiler) -->
+        <div v-if="!filledSlots[index]" class="slot-empty-indicator">
+          <span class="slot-dot">•</span>
         </div>
       </div>
     </div>
-    
-    <!-- Floating letter while dragging -->
-    <div 
-      v-if="draggingIndex !== null" 
+
+    <!-- Scattered Candies/Letters Area -->
+    <div class="scattered-area" ref="scatterAreaRef">
+      <div
+        v-for="(letter, index) in shuffledLetters"
+        :key="`draggable-${index}`"
+        class="scatter-letter"
+        :class="{
+          'used': usedLetters.includes(index),
+          'dragging': draggingIndex === index,
+          'hint-bounce': hintLetterIndex === index
+        }"
+        :style="getLetterPlacementStyle(index)"
+        @pointerdown="onLetterPointerDown($event, index)"
+      >
+        <div class="letter-inner-card">
+          <img :src="`/img/${letter}.png`" :alt="letter" class="scatter-img" draggable="false" />
+        </div>
+      </div>
+    </div>
+
+    <!-- Floating Letter for Dragging -->
+    <div
+      v-if="draggingIndex !== null"
       class="floating-letter"
-      :class="{ 'struggling': isDragging }"
       :style="floatingStyle"
     >
-      <img :src="`/img/${shuffledLetters[draggingIndex]}.png`" :alt="shuffledLetters[draggingIndex]" class="floating-img" />
+      <img
+        :src="`/img/${shuffledLetters[draggingIndex]}.png`"
+        :alt="shuffledLetters[draggingIndex]"
+        class="floating-img"
+        draggable="false"
+      />
     </div>
-    
-    <!-- Sentence Scene (shown after word completion) -->
-    <div v-if="showSentence" class="sentence-scene">
-      <div class="sentence-container">
-        <div class="sentence-text">
-          <span 
-            v-for="(wordPart, index) in sentenceParts" 
-            :key="index"
-            class="sentence-word"
-            :class="{ 'keyword': wordPart.toLowerCase().includes(word.word.toLowerCase()) }"
-            :style="{ animationDelay: `${index * 0.15}s` }"
-          >
-            {{ wordPart }}
-          </span>
+
+    <!-- Flying Letter Animation Clone for Tap-To-Place -->
+    <div
+      v-if="flyingLetter"
+      class="flying-letter"
+      :style="flyingLetterStyle"
+    >
+      <img :src="`/img/${flyingLetter.char}.png`" :alt="flyingLetter.char" class="flying-img" />
+    </div>
+
+    <!-- Bright Cartoon Story Dialogue (After Word Complete) -->
+    <transition name="story-slide">
+      <div v-if="showSentence" class="story-modal-overlay">
+        <div class="story-card">
+          <div class="story-header">
+            <span class="story-emoji-hero">{{ word.emoji }}</span>
+            <div class="story-badge">Word Master!</div>
+          </div>
+
+          <div class="story-sentence">
+            <span
+              v-for="(part, idx) in sentenceWords"
+              :key="idx"
+              class="sentence-token"
+              :class="{ 'keyword': isKeyword(part) }"
+            >
+              {{ part }}
+            </span>
+          </div>
+
+          <div class="story-actions">
+            <button class="repeat-btn" @click="playSentenceAudio">
+              <span>🔊 Listen Again</span>
+            </button>
+            <button class="continue-btn" @click="handleLevelComplete">
+              <span>Next Word ➜</span>
+            </button>
+          </div>
         </div>
       </div>
-    </div>
-    
-    <!-- Celebration Overlay -->
-    <div v-if="showCelebration" class="celebration-overlay">
-      <div class="celebration-content">
-        <div class="stars">
-          <span 
-            v-for="i in 3" 
-            :key="i"
-            class="star"
-            :style="{ animationDelay: `${i * 0.15}s` }"
-          >
-            ⭐
-          </span>
-        </div>
-        <div class="celebration-text">Awesome!</div>
-        <div class="confetti-container">
-          <div 
-            v-for="i in 20" 
-            :key="i"
-            class="confetti"
-            :style="{
-              left: `${Math.random() * 100}%`,
-              animationDelay: `${Math.random() * 0.5}s`,
-              backgroundColor: confettiColors[i % confettiColors.length]
-            }"
-          ></div>
-        </div>
-      </div>
+    </transition>
+
+    <!-- Celebration Confetti -->
+    <div v-if="showCelebration" class="celebration-particles">
+      <span v-for="i in 18" :key="i" class="sparkle" :style="getSparkleStyle(i)">⭐</span>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import type { WordLevel } from '../../data/levels'
-import { getLetterAnimal } from '../../data/letterAnimals'
-import { useGameStore } from '../../stores/game'
+import { audioManager } from '../../utils/audio'
 
 interface Props {
   word: WordLevel
@@ -127,650 +137,417 @@ const emit = defineEmits<{
   complete: []
 }>()
 
-// Store
-const gameStore = useGameStore()
-
 // Refs
 const sceneRef = ref<HTMLElement | null>(null)
+const scatterAreaRef = ref<HTMLElement | null>(null)
 const slotRefs = ref<(HTMLElement | null)[]>([])
-const letterRefs = ref<(HTMLElement | null)[]>([])
 
 // State
 const filledSlots = ref<(string | null)[]>([])
 const usedLetters = ref<number[]>([])
 const shuffledLetters = ref<string[]>([])
-const showSentence = ref(false)
-const showCelebration = ref(false)
-const isCompleted = ref(false)
-const errorCount = ref(0)
+const letterPositions = ref<{ x: number; y: number; rotate: number }[]>([])
 
-// Drag state
+// Dragging & Interaction State
 const draggingIndex = ref<number | null>(null)
+const dragPointerId = ref<number | null>(null)
 const dragStartX = ref(0)
 const dragStartY = ref(0)
 const currentX = ref(0)
 const currentY = ref(0)
-const hasDragged = ref(false) // Track if user has actually dragged
-const letterPositions = ref<{x: number, y: number, rotation: number, style: string}[]>([])
-const nearSlot = ref<number | null>(null)
-const highlightSlot = ref<number | null>(null)
-const isDragging = ref(false) // Track dragging state for animation
-const letterSoundInterval = ref<number | null>(null) // For repeating letter sound
-const dragTimeout = ref<number | null>(null) // Safety timeout for drag
+const dragDistance = ref(0)
+const nearSlotIndex = ref<number | null>(null)
+const hintSlotIndex = ref<number | null>(null)
+const hintLetterIndex = ref<number | null>(null)
 
-// Letter styles: bubble, block, card, star, diamond
-const letterStyles = ['bubble', 'block', 'card', 'star', 'diamond']
+// Tap-To-Fly Animation State
+interface FlyingLetterData {
+  char: string
+  startX: number
+  startY: number
+  targetX: number
+  targetY: number
+  progress: number
+}
+const flyingLetter = ref<FlyingLetterData | null>(null)
 
-// Confetti colors
-const confettiColors = ['#FF6B6B', '#4ECDC4', '#FFD93D', '#A8E6CF', '#FF8E53']
+// Success & Story
+const isCompleted = ref(false)
+const showCelebration = ref(false)
+const showSentence = ref(false)
 
-// Computed
-const sentenceParts = computed(() => {
+// Active Timers for safe cleanup
+const activeTimers: number[] = []
+function safeTimeout(fn: () => void, ms: number) {
+  const tid = window.setTimeout(fn, ms)
+  activeTimers.push(tid)
+  return tid
+}
+
+// Sentence computation
+const sentenceWords = computed(() => {
   return props.word.sentence.split(' ')
 })
 
+function isKeyword(token: string): boolean {
+  return token.toLowerCase().includes(props.word.word.toLowerCase())
+}
+
 const floatingStyle = computed(() => {
-  const pos = draggingIndex.value !== null ? letterPositions.value[draggingIndex.value] : null
   return {
-    transform: `translate(${currentX.value}px, ${currentY.value}px) scale(1.2)`,
-    opacity: 1,
-    animation: 'none'
+    transform: `translate3d(${currentX.value - 45}px, ${currentY.value - 45}px, 0) scale(1.25)`,
+    opacity: 0.95
   }
 })
 
-// Get floating letter class
-const floatingClass = computed(() => {
-  if (draggingIndex.value === null) return ''
-  const pos = letterPositions.value[draggingIndex.value]
-  if (!pos) return ''
-  return `letter-${pos.style}`
+const flyingLetterStyle = computed(() => {
+  if (!flyingLetter.value) return {}
+  const { startX, startY, targetX, targetY } = flyingLetter.value
+  return {
+    '--start-x': `${startX}px`,
+    '--start-y': `${startY}px`,
+    '--target-x': `${targetX}px`,
+    '--target-y': `${targetY}px`
+  }
 })
 
-// Helper functions
-const setSlotRef = (el: any, index: number) => {
+function setSlotRef(el: any, index: number) {
   if (el) slotRefs.value[index] = el as HTMLElement
 }
 
-const setLetterRef = (el: any, index: number) => {
-  if (el) letterRefs.value[index] = el as HTMLElement
-}
-
-const getLetterStyle = (index: number) => {
+function getLetterPlacementStyle(index: number) {
   if (usedLetters.value.includes(index)) {
-    return { opacity: 0, transform: 'scale(0)' }
+    return { opacity: 0, transform: 'scale(0)', pointerEvents: 'none' as const }
   }
-  
-  // Hide the letter being dragged
   if (draggingIndex.value === index) {
     return { opacity: 0 }
   }
-  
   const pos = letterPositions.value[index]
   if (!pos) return {}
-  
   return {
     left: `${pos.x}%`,
     top: `${pos.y}px`,
-    transform: `translateX(-50%) rotate(${pos.rotation}deg)`
+    transform: `rotate(${pos.rotate}deg)`
   }
 }
 
-// Get letter class based on random style
-const getLetterClass = (index: number) => {
-  const pos = letterPositions.value[index]
-  if (!pos) return ''
-  return `letter-${pos.style}`
-}
-
-// Get slot animal
-const getSlotAnimal = (letter: string) => {
-  return getLetterAnimal(letter)
-}
-
-// Get slot shape class
-const getSlotShapeClass = (letter: string) => {
-  const animal = getLetterAnimal(letter)
-  return `slot-shape-${animal.shape}`
-}
-
-// Get letter shape class
-const getLetterShapeClass = (letter: string) => {
-  const animal = getLetterAnimal(letter)
-  return `letter-shape-${animal.shape}`
-}
-
-// Shuffle array
-const shuffleArray = (array: string[]) => {
-  const shuffled = [...array]
-  for (let i = shuffled.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]
+// Sparkles style generator
+function getSparkleStyle(i: number) {
+  const left = 10 + (i * 15) % 80
+  const top = 20 + (i * 22) % 60
+  const delay = (i * 0.08).toFixed(2)
+  return {
+    left: `${left}%`,
+    top: `${top}%`,
+    animationDelay: `${delay}s`
   }
-  return shuffled
 }
 
-// Initialize
-onMounted(() => {
-  initializeWord()
-  // Add both pointer and touch events for mobile compatibility
-  document.addEventListener('pointermove', onPointerMove)
-  document.addEventListener('pointerup', onPointerUp)
-  document.addEventListener('touchmove', onTouchMove, { passive: false })
-  document.addEventListener('touchend', onTouchEnd)
-  document.addEventListener('touchcancel', onTouchEnd)
-})
-
-onUnmounted(() => {
-  document.removeEventListener('pointermove', onPointerMove)
-  document.removeEventListener('pointerup', onPointerUp)
-  document.removeEventListener('touchmove', onTouchMove)
-  document.removeEventListener('touchend', onTouchEnd)
-  document.removeEventListener('touchcancel', onTouchEnd)
-})
-
-watch(() => props.word, () => {
-  initializeWord()
-})
-
-const initializeWord = () => {
+// 单词初始化
+function initializeWord() {
+  clearAllTimers()
   filledSlots.value = new Array(props.word.letters.length).fill(null)
   usedLetters.value = []
-  shuffledLetters.value = shuffleArray(props.word.letters)
-  showSentence.value = false
-  showCelebration.value = false
   isCompleted.value = false
-  errorCount.value = 0
-  
-  // Generate random positions for scattered letters
-  const count = shuffledLetters.value.length
-  
-  // Grid-based random positioning to avoid overlap
-  // Divide container into a grid and place letters randomly within each cell
-  const cols = Math.ceil(Math.sqrt(count))
+  showCelebration.value = false
+  showSentence.value = false
+  draggingIndex.value = null
+  flyingLetter.value = null
+  nearSlotIndex.value = null
+  hintSlotIndex.value = null
+  hintLetterIndex.value = null
+
+  // 打乱字母
+  const letters = [...props.word.letters]
+  for (let i = letters.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[letters[i], letters[j]] = [letters[j], letters[i]]
+  }
+  shuffledLetters.value = letters
+
+  // 计算散落位置（网格分布，避免重叠）
+  const count = letters.length
+  const cols = Math.min(count, 4)
   const rows = Math.ceil(count / cols)
-  
+
   letterPositions.value = Array.from({ length: count }, (_, i) => {
     const col = i % cols
     const row = Math.floor(i / cols)
-    
-    // Calculate cell boundaries (with margins)
-    const cellWidth = 80 / cols // 80% of width divided by columns
-    const cellHeight = 200 / rows // 200px height divided by rows
-    
-    // Random position within cell
-    const x = 10 + col * cellWidth + Math.random() * (cellWidth * 0.7)
-    const y = 20 + row * cellHeight + Math.random() * (cellHeight * 0.6)
-    
-    // Random rotation
-    const rotation = (Math.random() - 0.5) * 30
-    
-    return {
-      x: x,
-      y: y,
-      rotation: rotation,
-      style: letterStyles[Math.floor(Math.random() * letterStyles.length)]
-    }
+    const cellW = 85 / cols
+    const cellH = 130 / rows
+    const x = 8 + col * cellW + Math.random() * (cellW * 0.5)
+    const y = 15 + row * cellH + Math.random() * (cellH * 0.4)
+    const rotate = (Math.random() - 0.5) * 24
+    return { x, y, rotate }
   })
-  
-  // Play word after a short delay
-  setTimeout(() => {
-    playWord()
-  }, 500)
+
+  // 播放开场单词发音
+  safeTimeout(() => {
+    audioManager.playWord(props.word.word)
+  }, 400)
+
+  // 5秒无操作提示
+  scheduleIdleHint()
 }
 
-// Speech synthesis helper - using browser's built-in TTS
-const speak = (text: string, options: { rate?: number; pitch?: number; cancel?: boolean } = {}) => {
-  console.log('Attempting to speak:', text)
-  
-  if (!('speechSynthesis' in window)) {
-    console.warn('Speech synthesis not supported')
-    return
-  }
-  
-  // Only cancel if specified (default true for backward compatibility)
-  if (options.cancel !== false) {
-    speechSynthesis.cancel()
-  }
-  
-  // Create utterance
-  const utterance = new SpeechSynthesisUtterance(text)
-  utterance.lang = 'en-US'
-  utterance.rate = options.rate || 0.9
-  utterance.pitch = options.pitch || 1.0
-  utterance.volume = 1.0
-  
-  // Get available voices
-  const voices = speechSynthesis.getVoices()
-  
-  // Try to use user's selected voice
-  let selectedVoice = null
-  if (gameStore.selectedVoiceName) {
-    selectedVoice = voices.find(v => v.name === gameStore.selectedVoiceName)
-  }
-  
-  // Fallback to default voice selection
-  if (!selectedVoice) {
-    selectedVoice = voices.find(v => v.name.includes('Google US English')) ||
-                   voices.find(v => v.name.includes('Microsoft David')) ||
-                   voices.find(v => v.name.includes('Microsoft Zira')) ||
-                   voices.find(v => v.lang === 'en-US') ||
-                   voices.find(v => v.lang.startsWith('en'))
-  }
-  
-  if (selectedVoice) {
-    utterance.voice = selectedVoice
-    console.log('Using voice:', selectedVoice.name)
-  }
-  
-  // Speak
-  speechSynthesis.speak(utterance)
-}
-
-// Play letter pronunciation - with cancel=false to allow repeating
-const playLetter = (letter: string) => {
-  speak(letter, { rate: 0.5, pitch: 1.0, cancel: false })
-}
-
-// Play word pronunciation - slow for children
-const playWord = () => {
-  const word = props.word.word
-  const speakWord = word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
-  console.log('Playing word:', speakWord)
-  speak(speakWord, { rate: 0.7, pitch: 1.0 })
-}
-
-// Play sentence - slow and clear
-const playSentence = () => {
-  speak(props.word.sentence, { rate: 0.65, pitch: 1.0 })
-}
-
-// Start drag
-const startDrag = (event: PointerEvent, index: number) => {
-  if (usedLetters.value.includes(index)) return
-  
-  event.preventDefault()
-  const target = event.currentTarget as HTMLElement
-  const rect = target.getBoundingClientRect()
-  
-  draggingIndex.value = index
-  isDragging.value = true
-  dragStartX.value = event.clientX
-  dragStartY.value = event.clientY
-  currentX.value = event.clientX - rect.width / 2
-  currentY.value = event.clientY - rect.height / 2
-  hasDragged.value = false
-  
-  // Don't use setPointerCapture on mobile - it causes issues
-  // The document-level listeners will handle tracking
-  
-  // Start repeating letter sound
-  const letter = shuffledLetters.value[index]
-  playLetter(letter)
-  
-  // Repeat letter sound while dragging
-  letterSoundInterval.value = window.setInterval(() => {
-    if (isDragging.value) {
-      playLetter(letter)
-    }
-  }, 800)
-  
-  // Safety timeout: if drag takes too long, auto-stop (5 seconds)
-  dragTimeout.value = window.setTimeout(() => {
-    if (isDragging.value) {
-      console.log('Drag timeout - auto stopping')
-      resetDragState()
-      stopLetterSound()
+let idleHintTimer: number | null = null
+function scheduleIdleHint() {
+  if (idleHintTimer) clearTimeout(idleHintTimer)
+  idleHintTimer = window.setTimeout(() => {
+    if (isCompleted.value) return
+    // 找到第一个未填的槽位
+    const emptyIndex = filledSlots.value.findIndex(s => s === null)
+    if (emptyIndex !== -1) {
+      const neededChar = props.word.letters[emptyIndex]
+      const sourceIndex = shuffledLetters.value.findIndex(
+        (char, idx) => char === neededChar && !usedLetters.value.includes(idx)
+      )
+      if (sourceIndex !== -1) {
+        hintSlotIndex.value = emptyIndex
+        hintLetterIndex.value = sourceIndex
+        audioManager.playPop()
+        safeTimeout(() => {
+          hintSlotIndex.value = null
+          hintLetterIndex.value = null
+        }, 2200)
+      }
     }
   }, 5000)
 }
 
-// Pointer move
-const onPointerMove = (event: PointerEvent) => {
+function clearAllTimers() {
+  if (idleHintTimer) clearTimeout(idleHintTimer)
+  activeTimers.forEach(id => clearTimeout(id))
+  activeTimers.length = 0
+}
+
+// 触摸/按下
+function onLetterPointerDown(e: PointerEvent, index: number) {
+  if (usedLetters.value.includes(index) || isCompleted.value) return
+
+  const letter = shuffledLetters.value[index]
+  draggingIndex.value = index
+  dragPointerId.value = e.pointerId
+  dragStartX.value = e.clientX
+  dragStartY.value = e.clientY
+  currentX.value = e.clientX
+  currentY.value = e.clientY
+  dragDistance.value = 0
+  nearSlotIndex.value = null
+
+  // 立即发出自然拼读萌音和气泡音
+  audioManager.playPop()
+  audioManager.playPhonics(letter)
+
+  document.addEventListener('pointermove', onPointerMove)
+  document.addEventListener('pointerup', onPointerUp)
+  document.addEventListener('pointercancel', onPointerUp)
+}
+
+function onPointerMove(e: PointerEvent) {
   if (draggingIndex.value === null) return
-  
-  currentX.value = event.clientX - 40
-  currentY.value = event.clientY - 45
-  
-  // Check if user has dragged more than 20px
-  const dx = event.clientX - dragStartX.value
-  const dy = event.clientY - dragStartY.value
-  const distance = Math.sqrt(dx * dx + dy * dy)
-  if (distance > 20) {
-    hasDragged.value = true
-  }
-  
-  // Only check proximity if user has actually dragged
-  if (hasDragged.value) {
-    checkProximity(event.clientX, event.clientY)
+
+  currentX.value = e.clientX
+  currentY.value = e.clientY
+
+  const dx = e.clientX - dragStartX.value
+  const dy = e.clientY - dragStartY.value
+  dragDistance.value = Math.sqrt(dx * dx + dy * dy)
+
+  // 只有移动超过 10px 才做磁吸判定
+  if (dragDistance.value > 10) {
+    checkMagneticSnap(e.clientX, e.clientY)
   }
 }
 
-// Touch move handler for mobile
-const onTouchMove = (event: TouchEvent) => {
+// 磁吸检测（支持重复字母放到任意合法的空槽位）
+function checkMagneticSnap(x: number, y: number) {
   if (draggingIndex.value === null) return
-  event.preventDefault() // Prevent scrolling
-  
-  const touch = event.touches[0]
-  currentX.value = touch.clientX - 40
-  currentY.value = touch.clientY - 45
-  
-  // Check if user has dragged more than 20px
-  const dx = touch.clientX - dragStartX.value
-  const dy = touch.clientY - dragStartY.value
-  const distance = Math.sqrt(dx * dx + dy * dy)
-  if (distance > 20) {
-    hasDragged.value = true
-  }
-  
-  // Only check proximity if user has actually dragged
-  if (hasDragged.value) {
-    checkProximity(touch.clientX, touch.clientY)
-  }
-}
+  const letter = shuffledLetters.value[draggingIndex.value]
 
-// Touch end handler for mobile
-const onTouchEnd = (event: TouchEvent) => {
-  console.log('Touch end called, draggingIndex:', draggingIndex.value)
-  
-  // Always stop sound and animation first
-  stopLetterSound()
-  isDragging.value = false
-  
-  if (draggingIndex.value === null) {
-    console.log('No letter being dragged on touch end')
-    return
-  }
-  
-  // Get the last touch position
-  const touch = event.changedTouches[0]
-  if (!touch) {
-    console.log('No touch found, resetting state')
-    resetDragState()
-    return
-  }
-  
-  const letterIndex = draggingIndex.value
-  const letter = shuffledLetters.value[letterIndex]
-  console.log('Touch end - releasing letter:', letter)
-  
-  // Calculate drag distance
-  const totalDragDistance = Math.sqrt(
-    Math.pow(touch.clientX - dragStartX.value, 2) + 
-    Math.pow(touch.clientY - dragStartY.value, 2)
-  )
-  
-  const minDragDistance = 40
-  
-  if (totalDragDistance > minDragDistance && nearSlot.value !== null) {
-    const slotIndex = nearSlot.value
-    const expectedLetter = props.word.letters[slotIndex]
-    
-    if (letter === expectedLetter) {
-      console.log('Correct placement via touch!')
-      handleCorrectPlacement(letterIndex, slotIndex)
-    } else {
-      console.log('Wrong placement via touch')
-      handleWrongPlacement(letterIndex)
-    }
-  } else {
-    console.log('Bounce back via touch')
-    handleWrongPlacement(letterIndex)
-  }
-  
-  // Reset drag state
-  resetDragState()
-}
+  let bestIndex = -1
+  let minDistance = 90 // 宽松磁吸距离，方便幼儿
 
-// Reset drag state helper
-const resetDragState = () => {
-  console.log('Resetting drag state')
-  draggingIndex.value = null
-  isDragging.value = false
-  nearSlot.value = null
-  hasDragged.value = false
-  
-  // Clear safety timeout
-  if (dragTimeout.value) {
-    clearTimeout(dragTimeout.value)
-    dragTimeout.value = null
-  }
-}
+  slotRefs.value.forEach((slot, idx) => {
+    if (!slot || filledSlots.value[idx] !== null) return
+    // 检查该槽位是否需要这个字母
+    if (props.word.letters[idx] !== letter) return
 
-// Check proximity to drop slots
-const checkProximity = (x: number, y: number) => {
-  let nearestIndex = -1
-  let nearestDistance = 60 // Snap distance - smaller for more precise placement
-  
-  slotRefs.value.forEach((slot, index) => {
-    if (!slot || filledSlots.value[index]) return
-    
     const rect = slot.getBoundingClientRect()
-    const centerX = rect.left + rect.width / 2
-    const centerY = rect.top + rect.height / 2
-    const distance = Math.sqrt(Math.pow(x - centerX, 2) + Math.pow(y - centerY, 2))
-    
-    if (distance < nearestDistance) {
-      nearestDistance = distance
-      nearestIndex = index
+    const cx = rect.left + rect.width / 2
+    const cy = rect.top + rect.height / 2
+    const dist = Math.sqrt(Math.pow(x - cx, 2) + Math.pow(y - cy, 2))
+
+    if (dist < minDistance) {
+      minDistance = dist
+      bestIndex = idx
     }
   })
-  
-  nearSlot.value = nearestIndex >= 0 ? nearestIndex : null
+
+  nearSlotIndex.value = bestIndex !== -1 ? bestIndex : null
 }
 
-// Pointer up
-const onPointerUp = (event: PointerEvent) => {
-  console.log('Pointer up called, draggingIndex:', draggingIndex.value)
-  
-  // Always stop sound first
-  stopLetterSound()
-  isDragging.value = false
-  
-  if (draggingIndex.value === null) {
-    console.log('No letter being dragged, returning')
-    return
-  }
-  
+function onPointerUp(e: PointerEvent) {
+  if (draggingIndex.value === null) return
+
   const letterIndex = draggingIndex.value
   const letter = shuffledLetters.value[letterIndex]
-  console.log('Releasing letter:', letter, 'at index:', letterIndex)
-  
-  // Get final position
-  const finalX = event.clientX
-  const finalY = event.clientY
-  
-  // Calculate total drag distance
-  const totalDragDistance = Math.sqrt(
-    Math.pow(finalX - dragStartX.value, 2) + 
-    Math.pow(finalY - dragStartY.value, 2)
-  )
-  
-  // Only allow placement if dragged more than 40px
-  const minDragDistance = 40
-  
-  if (totalDragDistance > minDragDistance) {
-    // Check if near a valid slot
-    if (nearSlot.value !== null) {
-      const slotIndex = nearSlot.value
-      const expectedLetter = props.word.letters[slotIndex]
-      
-      if (letter === expectedLetter) {
-        // Correct placement!
-        console.log('Correct placement!')
-        handleCorrectPlacement(letterIndex, slotIndex)
-      } else {
-        // Wrong placement
-        console.log('Wrong placement, expected:', expectedLetter)
-        handleWrongPlacement(letterIndex)
-      }
-    } else {
-      // Not near any slot, bounce back
-      console.log('Not near any slot')
-      handleWrongPlacement(letterIndex)
-    }
+  const isTap = dragDistance.value <= 10
+
+  // 1. 如果是轻触（Tap）—— 触发点选自动飞入！
+  if (isTap) {
+    handleTapPlacement(letterIndex, letter)
+    cleanupDrag()
+    return
+  }
+
+  // 2. 如果是拖拽放置
+  if (nearSlotIndex.value !== null) {
+    const slotIdx = nearSlotIndex.value
+    // 放置成功
+    placeLetterToSlot(letterIndex, slotIdx, letter)
   } else {
-    // Didn't drag enough, bounce back
-    console.log('Did not drag enough')
-    handleWrongPlacement(letterIndex)
+    // 未放置到正确位置，果冻弹回
+    audioManager.playBoing()
   }
-  
-  // Reset drag state
-  resetDragState()
+
+  cleanupDrag()
 }
 
-// Stop letter sound
-const stopLetterSound = () => {
-  if (letterSoundInterval.value) {
-    clearInterval(letterSoundInterval.value)
-    letterSoundInterval.value = null
-  }
-  speechSynthesis.cancel()
+function cleanupDrag() {
+  draggingIndex.value = null
+  dragPointerId.value = null
+  nearSlotIndex.value = null
+  dragDistance.value = 0
+
+  document.removeEventListener('pointermove', onPointerMove)
+  document.removeEventListener('pointerup', onPointerUp)
+  document.removeEventListener('pointercancel', onPointerUp)
 }
 
-// Handle correct placement
-const handleCorrectPlacement = (letterIndex: number, slotIndex: number) => {
-  const letter = shuffledLetters.value[letterIndex]
-  
-  // Animate letter to slot
-  const slot = slotRefs.value[slotIndex]
-  if (slot) {
-    slot.classList.add('snap-success')
-    setTimeout(() => slot.classList.remove('snap-success'), 500)
+// 轻触自动飞入逻辑 (Tap-To-Fly)
+function handleTapPlacement(letterIndex: number, letter: string) {
+  // 查找第一个匹配且为空的槽位
+  const targetSlotIdx = filledSlots.value.findIndex(
+    (slot, idx) => slot === null && props.word.letters[idx] === letter
+  )
+
+  if (targetSlotIdx === -1) {
+    // 没有合适槽位，弹动提示
+    audioManager.playBoing()
+    return
   }
-  
-  // Update state
+
+  const slotEl = slotRefs.value[targetSlotIdx]
+  const scatterEl = scatterAreaRef.value
+  if (!slotEl || !scatterEl) {
+    // 兜底直接放置
+    placeLetterToSlot(letterIndex, targetSlotIdx, letter)
+    return
+  }
+
+  const targetRect = slotEl.getBoundingClientRect()
+  const startX = currentX.value
+  const startY = currentY.value
+  const targetX = targetRect.left + targetRect.width / 2
+  const targetY = targetRect.top + targetRect.height / 2
+
+  // 启动飞行动效
+  flyingLetter.value = {
+    char: letter,
+    startX,
+    startY,
+    targetX,
+    targetY,
+    progress: 0
+  }
+
+  usedLetters.value.push(letterIndex)
+  audioManager.playWhoosh()
+
+  safeTimeout(() => {
+    flyingLetter.value = null
+    filledSlots.value[targetSlotIdx] = letter
+    audioManager.playSnap()
+    checkComplete()
+  }, 320)
+}
+
+// 放置字母并检查通关
+function placeLetterToSlot(letterIndex: number, slotIndex: number, letter: string) {
   filledSlots.value[slotIndex] = letter
   usedLetters.value.push(letterIndex)
-  
-  // Play success sound
-  playSuccessSound()
-  
-  // Check completion
-  checkWordComplete()
-}
+  audioManager.playSnap()
 
-// Handle wrong placement
-const handleWrongPlacement = (letterIndex: number) => {
-  // Play error sound
-  playErrorSound()
-}
-
-// Highlight correct slot
-const highlightCorrectSlot = () => {
-  const nextEmptySlotIndex = filledSlots.value.findIndex(slot => slot === null)
-  if (nextEmptySlotIndex !== -1) {
-    highlightSlot.value = nextEmptySlotIndex
-    setTimeout(() => {
-      highlightSlot.value = null
-    }, 2000)
+  // 槽位弹性震动
+  const slotEl = slotRefs.value[slotIndex]
+  if (slotEl) {
+    slotEl.classList.add('pop-snap')
+    safeTimeout(() => slotEl.classList.remove('pop-snap'), 400)
   }
+
+  checkComplete()
 }
 
-// Auto-fill next letter
-const autoFillNextLetter = () => {
-  const nextEmptySlotIndex = filledSlots.value.findIndex(slot => slot === null)
-  if (nextEmptySlotIndex === -1) return
-  
-  const expectedLetter = props.word.letters[nextEmptySlotIndex]
-  const availableIndex = shuffledLetters.value.findIndex(
-    (letter, index) => letter === expectedLetter && !usedLetters.value.includes(index)
-  )
-  
-  if (availableIndex !== -1) {
-    handleCorrectPlacement(availableIndex, nextEmptySlotIndex)
+// 检查是否全部拼完
+function checkComplete() {
+  const allFilled = filledSlots.value.every(s => s !== null)
+  if (!allFilled || isCompleted.value) return
+
+  isCompleted.value = true
+  audioManager.playSuccess()
+
+  // 1. 读出整个单词
+  safeTimeout(() => {
+    audioManager.playWord(props.word.word)
+    showCelebration.value = true
+  }, 350)
+
+  // 2. 展开生动漫画卡片，朗读完整句子
+  safeTimeout(() => {
+    showSentence.value = true
+    audioManager.playSentence(props.word.sentence)
+  }, 1600)
+
+  // 3. 自动延时进入下一关（如果幼儿未点击下一步按钮）
+  safeTimeout(() => {
+    handleLevelComplete()
+  }, 6500)
+}
+
+function handleLevelComplete() {
+  emit('complete')
+}
+
+function playWordAudio() {
+  audioManager.playWord(props.word.word)
+}
+
+function playSentenceAudio() {
+  audioManager.playSentence(props.word.sentence)
+}
+
+function handleEmojiClick() {
+  audioManager.playPop()
+  audioManager.playWord(props.word.word)
+}
+
+watch(
+  () => props.word,
+  () => {
+    initializeWord()
   }
-}
+)
 
-// Check if word is complete
-const checkWordComplete = () => {
-  const isComplete = filledSlots.value.every(slot => slot !== null)
-  
-  if (isComplete && !isCompleted.value) {
-    isCompleted.value = true
-    
-    // Play word pronunciation
-    setTimeout(() => {
-      playWord()
-    }, 300)
-    
-    // Show celebration
-    setTimeout(() => {
-      showCelebration.value = true
-    }, 800)
-    
-    // Show sentence
-    setTimeout(() => {
-      showCelebration.value = false
-      showSentence.value = true
-      playSentence()
-    }, 2500)
-    
-    // Complete level
-    setTimeout(() => {
-      emit('complete')
-    }, 5000)
-  }
-}
+onMounted(() => {
+  initializeWord()
+})
 
-// Sound effects
-const playClickSound = () => {
-  try {
-    const audioContext = new AudioContext()
-    const oscillator = audioContext.createOscillator()
-    const gainNode = audioContext.createGain()
-    
-    oscillator.connect(gainNode)
-    gainNode.connect(audioContext.destination)
-    
-    oscillator.frequency.setValueAtTime(800, audioContext.currentTime)
-    gainNode.gain.setValueAtTime(0.1, audioContext.currentTime)
-    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.1)
-    
-    oscillator.start(audioContext.currentTime)
-    oscillator.stop(audioContext.currentTime + 0.1)
-  } catch (e) {}
-}
-
-const playSuccessSound = () => {
-  try {
-    const audioContext = new AudioContext()
-    const oscillator = audioContext.createOscillator()
-    const gainNode = audioContext.createGain()
-    
-    oscillator.connect(gainNode)
-    gainNode.connect(audioContext.destination)
-    
-    oscillator.frequency.setValueAtTime(523.25, audioContext.currentTime)
-    oscillator.frequency.setValueAtTime(659.25, audioContext.currentTime + 0.1)
-    oscillator.frequency.setValueAtTime(783.99, audioContext.currentTime + 0.2)
-    
-    gainNode.gain.setValueAtTime(0.2, audioContext.currentTime)
-    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3)
-    
-    oscillator.start(audioContext.currentTime)
-    oscillator.stop(audioContext.currentTime + 0.3)
-  } catch (e) {}
-}
-
-const playErrorSound = () => {
-  try {
-    const audioContext = new AudioContext()
-    const oscillator = audioContext.createOscillator()
-    const gainNode = audioContext.createGain()
-    
-    oscillator.connect(gainNode)
-    gainNode.connect(audioContext.destination)
-    
-    oscillator.frequency.setValueAtTime(300, audioContext.currentTime)
-    oscillator.frequency.setValueAtTime(200, audioContext.currentTime + 0.1)
-    
-    gainNode.gain.setValueAtTime(0.15, audioContext.currentTime)
-    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.15)
-    
-    oscillator.start(audioContext.currentTime)
-    oscillator.stop(audioContext.currentTime + 0.15)
-  } catch (e) {}
-}
+onUnmounted(() => {
+  clearAllTimers()
+  cleanupDrag()
+  audioManager.stopAllSpeech()
+})
 </script>
 
 <style scoped>
@@ -780,679 +557,426 @@ const playErrorSound = () => {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: flex-start;
-  padding: 0.5rem 1rem 1rem;
+  justify-content: space-between;
+  padding: 0.5rem 1rem 1.5rem;
   position: relative;
-  overflow: visible;
-  touch-action: none;
+  overflow: hidden;
   user-select: none;
   -webkit-user-select: none;
-  gap: 0.5rem;
+  touch-action: none;
 }
 
-/* Word Illustration */
+/* Illustration Header */
 .word-illustration {
-  text-align: center;
-  margin-bottom: 0.5rem;
-  position: relative;
-}
-
-.word-emoji {
-  font-size: 5rem;
-  display: block;
-  margin-bottom: 0.3rem;
-  animation: floatEmoji 3s ease-in-out infinite;
-}
-
-.word-label {
-  font-size: 2.5rem;
-  font-weight: bold;
-  color: #2C3E50;
-  font-family: 'Comic Sans MS', cursive;
-  text-shadow: 2px 2px 0px rgba(255, 255, 255, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-}
-
-.play-word-btn {
-  background: linear-gradient(135deg, #4ECDC4 0%, #44B09E 100%);
-  border: none;
-  border-radius: 50%;
-  width: 45px;
-  height: 45px;
-  font-size: 1.5rem;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s ease;
-  box-shadow: 0 4px 15px rgba(78, 205, 196, 0.3);
-}
-
-.play-word-btn:hover {
-  transform: scale(1.1);
-  box-shadow: 0 6px 20px rgba(78, 205, 196, 0.4);
-}
-
-.play-word-btn:active {
-  transform: scale(0.95);
-}
-
-/* Letter Board */
-.letter-board {
-  width: 100%;
-  max-width: 700px;
-  margin-bottom: 0.5rem;
-  padding: 0 1rem;
-}
-
-.drop-slots {
-  display: flex;
-  justify-content: center;
-  gap: 0.8rem;
-  margin-bottom: 1rem;
-  flex-wrap: wrap;
-}
-
-.drop-slot {
-  width: clamp(60px, 15vw, 120px);
-  height: clamp(60px, 15vw, 120px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  position: relative;
-  background: rgba(255, 255, 255, 0.15);
-  border-radius: 15px;
-  border: 3px dashed rgba(255, 217, 61, 0.5);
-}
-
-/* Letter image in slot */
-.slot-letter-img {
-  width: 80%;
-  height: 80%;
-  object-fit: contain;
-  transition: all 0.3s ease;
-}
-
-.slot-letter-img.placeholder {
-  opacity: 0.25;
-  filter: grayscale(80%);
-}
-
-.slot-letter-img.filled {
-  opacity: 1;
-  filter: none;
-  animation: bounceIn 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
-}
-
-.drop-slot.filled {
-  border-style: solid;
-  border-color: #4ECDC4;
-  background: rgba(78, 205, 196, 0.2);
-}
-
-.drop-slot.highlight {
-  border-color: #FFD93D;
-  background: rgba(255, 217, 61, 0.2);
-  animation: pulse 1s infinite;
-}
-
-.drop-slot.near {
-  border-color: #4ECDC4;
-  background: rgba(78, 205, 196, 0.3);
-  transform: scale(1.1);
-  box-shadow: 0 0 20px rgba(78, 205, 196, 0.4);
-}
-
-.drop-slot.snap-success {
-  animation: snapSuccess 0.4s ease-out;
-}
-
-.slot-letter-text {
-  font-size: 1.8rem;
-  font-weight: bold;
-}
-
-.slot-placeholder {
   display: flex;
   flex-direction: column;
   align-items: center;
-  opacity: 0.4;
+  margin-top: 0.2rem;
 }
 
-.slot-placeholder .slot-animal-emoji {
-  font-size: 2rem;
+.emoji-wrapper {
+  cursor: pointer;
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
-/* Draggable Letters - Scattered Layout */
-.draggable-letters {
-  position: relative;
-  width: 100%;
-  height: 300px;
-  margin-top: 0.5rem;
-  overflow: visible;
-}
-
-.draggable-letter {
-  position: absolute;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: clamp(70px, 18vw, 110px);
-  height: clamp(70px, 18vw, 110px);
-  cursor: grab;
-  z-index: 1;
-  touch-action: none;
-  transition: none;
-}
-
-/* Letter image styles */
-.letter-img {
-  width: 85%;
-  height: 85%;
-  object-fit: contain;
-  filter: drop-shadow(2px 2px 4px rgba(0, 0, 0, 0.3));
-}
-
-.draggable-letter:hover .letter-img {
+.emoji-wrapper:hover {
   transform: scale(1.1);
 }
 
-/* Floating letter styles */
-.floating-img {
-  width: clamp(70px, 18vw, 110px);
-  height: clamp(70px, 18vw, 110px);
-  object-fit: contain;
-  filter: drop-shadow(4px 4px 8px rgba(0, 0, 0, 0.4));
+.word-emoji {
+  font-size: 5.5rem;
+  display: block;
+  filter: drop-shadow(0 8px 16px rgba(0, 0, 0, 0.15));
 }
 
-/* Struggling animation when dragging */
-.floating-letter.struggling {
-  animation: struggle 0.15s ease-in-out infinite alternate;
+.word-label-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  background: white;
+  padding: 0.35rem 1.4rem;
+  border-radius: 30px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+  margin-top: 0.4rem;
 }
 
-@keyframes struggle {
-  0% {
-    transform: translate(var(--x, 0), var(--y, 0)) rotate(-8deg) scale(1.1);
-  }
-  100% {
-    transform: translate(var(--x, 0), var(--y, 0)) rotate(8deg) scale(1.05);
-  }
+.word-label-text {
+  font-size: 2.2rem;
+  font-weight: 900;
+  font-family: 'Comic Sans MS', cursive;
+  color: #2c3e50;
+  letter-spacing: 2px;
 }
 
-/* Alternative struggle with translate */
-.floating-letter.struggling .floating-img {
-  animation: struggleImg 0.12s ease-in-out infinite alternate;
+.pronounce-btn {
+  background: linear-gradient(135deg, #10ac84, #1dd1a1);
+  border: none;
+  border-radius: 50%;
+  width: 38px;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 3px 8px rgba(16, 172, 132, 0.3);
+  transition: transform 0.2s;
 }
 
-@keyframes struggleImg {
-  0% {
-    transform: rotate(-10deg) scale(1.1);
-  }
-  100% {
-    transform: rotate(10deg) scale(1.05);
-  }
+.pronounce-btn:hover {
+  transform: scale(1.1);
 }
 
-/* Each letter floats at different times */
-.draggable-letter:nth-child(1) { animation-delay: 0s, 0s; }
-.draggable-letter:nth-child(2) { animation-delay: 0.15s, 0.4s; }
-.draggable-letter:nth-child(3) { animation-delay: 0.3s, 0.8s; }
-.draggable-letter:nth-child(4) { animation-delay: 0.45s, 1.2s; }
-.draggable-letter:nth-child(5) { animation-delay: 0.6s, 1.6s; }
+.speaker-icon {
+  font-size: 1.1rem;
+}
 
-/* Glow effect on edges */
-.draggable-letter::before {
-  content: '';
-  position: absolute;
-  top: -2px;
-  left: -2px;
-  right: -2px;
-  bottom: -2px;
+/* Drop Slots Board */
+.slots-container {
+  display: flex;
+  justify-content: center;
+  gap: 0.9rem;
+  margin: 0.8rem 0;
+  width: 100%;
+  max-width: 650px;
+  flex-wrap: wrap;
+}
+
+.slot-item {
+  width: clamp(65px, 16vw, 100px);
+  height: clamp(65px, 16vw, 100px);
   border-radius: 22px;
-  background: linear-gradient(135deg, rgba(255,255,255,0.3), transparent);
-  z-index: -1;
+  background: rgba(255, 255, 255, 0.4);
+  border: 3.5px dashed rgba(255, 255, 255, 0.9);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.08);
+  transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
-.draggable-letter:hover:not(.used) {
-  transform: scale(1.2) translateY(-8px) !important;
-  box-shadow: 
-    0 20px 50px rgba(255, 107, 107, 0.5),
-    0 0 30px rgba(255, 107, 107, 0.3);
-  z-index: 10;
-  animation-play-state: paused;
+.slot-item.filled {
+  border-style: solid;
+  border-color: #2ed573;
+  background: white;
+  box-shadow: 0 8px 20px rgba(46, 213, 115, 0.25);
 }
 
-.draggable-letter:active:not(.used) {
+.slot-item.target-hint {
+  border-color: #ffa502;
+  background: rgba(255, 165, 2, 0.25);
+  animation: slotWiggle 0.6s infinite;
+}
+
+.slot-item.magnetic-near {
+  border-color: #ff4757;
+  transform: scale(1.12);
+  background: rgba(255, 71, 87, 0.2);
+  box-shadow: 0 0 25px rgba(255, 71, 87, 0.4);
+}
+
+.slot-empty-indicator {
+  font-size: 2rem;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.filled-letter-wrapper {
+  width: 85%;
+  height: 85%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.slot-letter-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.15));
+}
+
+/* Scattered Letters Area */
+.scattered-area {
+  position: relative;
+  width: 100%;
+  max-width: 650px;
+  height: 220px;
+  background: rgba(255, 255, 255, 0.18);
+  border-radius: 28px;
+  box-shadow: inset 0 2px 8px rgba(255, 255, 255, 0.4);
+}
+
+.scatter-letter {
+  position: absolute;
+  width: clamp(68px, 17vw, 95px);
+  height: clamp(68px, 17vw, 95px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: grab;
+  touch-action: none;
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.25s ease;
+}
+
+.scatter-letter:active {
   cursor: grabbing;
-  transform: scale(0.95) !important;
-  box-shadow: 
-    0 4px 15px rgba(255, 107, 107, 0.3),
-    inset 0 2px 5px rgba(0, 0, 0, 0.2);
 }
 
-.draggable-letter.used {
-  opacity: 0;
-  transform: scale(0);
+.scatter-letter.hint-bounce {
+  animation: letterBounce 0.6s infinite alternate;
+}
+
+.letter-inner-card {
+  width: 100%;
+  height: 100%;
+  border-radius: 22px;
+  background: white;
+  padding: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.14);
+  transition: transform 0.15s ease;
+}
+
+.scatter-letter:hover .letter-inner-card {
+  transform: scale(1.08);
+}
+
+.scatter-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
   pointer-events: none;
 }
 
-.draggable-letter.dragging {
-  opacity: 0.3;
-  transform: scale(0.9);
-}
-
-.draggable-letter.near-target {
-  background: linear-gradient(135deg, #4ECDC4 0%, #44B09E 100%);
-}
-
-.draggable-letter.shake {
-  animation: shake 0.5s ease-in-out;
-}
-
-/* Floating Letter (follows cursor) */
+/* Floating Letter (Drag跟随) */
 .floating-letter {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 90px;
+  height: 90px;
+  pointer-events: none;
+  z-index: 1000;
+  will-change: transform;
+  filter: drop-shadow(0 15px 25px rgba(0, 0, 0, 0.25));
+}
+
+.floating-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+/* Flying Letter (Tap to place) */
+.flying-letter {
   position: fixed;
   top: 0;
   left: 0;
   width: 85px;
   height: 85px;
-  background: linear-gradient(135deg, #FF6B6B 0%, #FF8E53 100%);
-  border-radius: 50%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  font-size: 2rem;
-  font-weight: bold;
-  color: white;
-  font-family: 'Comic Sans MS', cursive;
-  box-shadow: 0 15px 40px rgba(255, 107, 107, 0.6);
-  z-index: 1000;
   pointer-events: none;
-  will-change: transform;
-  transition: transform 0.05s linear;
-  gap: 2px;
+  z-index: 999;
+  animation: flyToSlot 0.32s cubic-bezier(0.25, 1, 0.5, 1) forwards;
 }
 
-.floating-animal-emoji {
-  font-size: 2.5rem;
+.flying-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
 }
 
-.floating-letter-text {
-  font-size: 1.2rem;
-  font-weight: bold;
-}
-
-/* Floating letter shapes */
-.floating-letter.letter-shape-circle {
-  width: 85px;
-  height: 85px;
-  border-radius: 50%;
-  background: radial-gradient(circle at 35% 35%, #FF9999, #FF6B6B 50%, #FF4444 100%);
-}
-
-.floating-letter.letter-shape-square {
-  width: 78px;
-  height: 88px;
-  border-radius: 10px;
-  background: linear-gradient(145deg, #5DDEAB 0%, #4ECDC4 40%, #3DBFB7 100%);
-}
-
-.floating-letter.letter-shape-rounded {
-  width: 80px;
-  height: 90px;
-  border-radius: 20px;
-  background: linear-gradient(145deg, #74B9FF 0%, #0984E3 100%);
-}
-
-.floating-letter.letter-shape-star {
-  width: 90px;
-  height: 90px;
-  background: radial-gradient(circle at 40% 40%, #DDA0DD, #BA55D3 50%, #9932CC 100%);
-  clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%);
-}
-
-.floating-letter.letter-shape-diamond {
-  width: 80px;
-  height: 80px;
-  background: linear-gradient(145deg, #FFE66D 0%, #FFC800 100%);
-  clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
-}
-
-/* Sentence Scene */
-.sentence-scene {
+/* Bright Cartoon Story Dialogue (Replaces dark screen) */
+.story-modal-overlay {
   position: absolute;
   top: 0;
   left: 0;
   width: 100%;
   height: 100%;
-  background: rgba(0, 0, 0, 0.85);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 50;
-  animation: fadeIn 0.3s ease-out;
-}
-
-.sentence-container {
-  text-align: center;
-  padding: 2rem;
-}
-
-.sentence-text {
-  font-size: 2.2rem;
-  color: white;
-  font-family: 'Comic Sans MS', cursive;
-  margin-bottom: 1rem;
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 0.4rem;
-}
-
-.sentence-word {
-  display: inline-block;
-  animation: slideUp 0.4s ease-out both;
-}
-
-.sentence-word.keyword {
-  color: #FFD93D;
-  font-weight: bold;
-  text-shadow: 2px 2px 0px rgba(0, 0, 0, 0.3);
-}
-
-/* Celebration Overlay */
-.celebration-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
+  background: rgba(255, 255, 255, 0.65);
+  backdrop-filter: blur(10px);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 100;
-  pointer-events: none;
-  animation: fadeIn 0.3s ease-out;
+  padding: 1rem;
 }
 
-.celebration-content {
+.story-card {
+  background: white;
+  border-radius: 36px;
+  padding: 2.2rem 1.8rem;
+  max-width: 480px;
+  width: 92%;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15), 0 0 0 6px #ffeaa7;
   text-align: center;
-  position: relative;
+  animation: popStory 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
-.stars {
-  font-size: 3.5rem;
-  margin-bottom: 1rem;
+.story-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 1.2rem;
 }
 
-.star {
-  display: inline-block;
-  animation: starPop 0.5s ease-out both;
-  margin: 0 0.3rem;
+.story-emoji-hero {
+  font-size: 5rem;
+  animation: heroHop 1.2s infinite ease-in-out;
 }
 
-.celebration-text {
-  font-size: 3.5rem;
-  font-weight: bold;
-  color: #FFD93D;
+.story-badge {
+  background: linear-gradient(135deg, #ff9f43, #ee5253);
+  color: white;
   font-family: 'Comic Sans MS', cursive;
-  text-shadow: 3px 3px 0px #FF6B6B;
-  animation: bounceIn 0.5s ease-out;
+  font-size: 1.1rem;
+  font-weight: 900;
+  padding: 0.3rem 1.2rem;
+  border-radius: 20px;
 }
 
-.confetti-container {
+.story-sentence {
+  font-family: 'Comic Sans MS', cursive;
+  font-size: 2rem;
+  font-weight: bold;
+  color: #2f3542;
+  margin-bottom: 1.8rem;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.sentence-token.keyword {
+  color: #ff4757;
+  transform: scale(1.15);
+  text-decoration: underline;
+  text-decoration-color: #ffd32a;
+}
+
+.story-actions {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+}
+
+.repeat-btn {
+  background: #f1f2f6;
+  border: 2px solid #ced6e0;
+  border-radius: 50px;
+  padding: 0.8rem 1.5rem;
+  font-size: 1.1rem;
+  font-weight: bold;
+  font-family: 'Comic Sans MS', cursive;
+  cursor: pointer;
+  color: #2f3542;
+  transition: transform 0.2s;
+}
+
+.repeat-btn:hover {
+  transform: scale(1.05);
+}
+
+.continue-btn {
+  background: linear-gradient(135deg, #10ac84, #1dd1a1);
+  border: none;
+  border-radius: 50px;
+  padding: 0.8rem 2rem;
+  font-size: 1.2rem;
+  font-weight: 900;
+  color: white;
+  font-family: 'Comic Sans MS', cursive;
+  cursor: pointer;
+  box-shadow: 0 8px 20px rgba(29, 209, 161, 0.4);
+  transition: transform 0.2s;
+}
+
+.continue-btn:hover {
+  transform: scale(1.06);
+}
+
+/* Confetti Sparkles */
+.celebration-particles {
   position: absolute;
-  top: -50px;
+  top: 0;
   left: 0;
   width: 100%;
-  height: calc(100% + 100px);
+  height: 100%;
   pointer-events: none;
-  overflow: hidden;
+  z-index: 50;
 }
 
-.confetti {
+.sparkle {
   position: absolute;
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  animation: confettiFall 2s ease-out forwards;
+  font-size: 2.2rem;
+  animation: sparkleTwinkle 1.2s infinite ease-in-out;
 }
 
 /* Animations */
-@keyframes floatEmoji {
-  0%, 100% {
-    transform: translateY(0px);
-  }
-  50% {
-    transform: translateY(-10px);
-  }
-}
-
-/* Bubble pop-in animation */
-@keyframes bubbleIn {
+@keyframes flyToSlot {
   0% {
-    transform: translateY(-80px) scale(0) rotate(-10deg);
-    opacity: 0;
-  }
-  50% {
-    transform: translateY(10px) scale(1.1) rotate(3deg);
-    opacity: 1;
-  }
-  70% {
-    transform: translateY(-5px) scale(0.95) rotate(-2deg);
+    transform: translate3d(var(--start-x), var(--start-y), 0) scale(1);
+    opacity: 0.9;
   }
   100% {
-    transform: translateY(0) scale(1) rotate(0deg);
+    transform: translate3d(var(--target-x), var(--target-y), 0) scale(0.85);
     opacity: 1;
   }
 }
 
-/* Continuous gentle floating like bubbles */
-@keyframes bubbleFloat {
-  0%, 100% {
-    transform: translateY(0px) rotate(0deg);
-  }
-  25% {
-    transform: translateY(-8px) rotate(2deg);
-  }
-  50% {
-    transform: translateY(-3px) rotate(-1deg);
-  }
-  75% {
-    transform: translateY(-10px) rotate(1deg);
-  }
+@keyframes slotWiggle {
+  0%, 100% { transform: scale(1) rotate(0); }
+  25% { transform: scale(1.06) rotate(-3deg); }
+  75% { transform: scale(1.06) rotate(3deg); }
 }
 
-@keyframes floatIn {
-  0% {
-    transform: translateY(-50px) rotate(0deg) scale(0);
-    opacity: 0;
-  }
-  50% {
-    opacity: 1;
-  }
-  100% {
-    transform: translateY(0) rotate(0deg) scale(1);
-    opacity: 1;
-  }
+@keyframes letterBounce {
+  from { transform: translateY(0); }
+  to { transform: translateY(-12px); }
 }
 
-@keyframes float {
-  0%, 100% {
-    transform: translateY(0px);
-  }
-  50% {
-    transform: translateY(-8px);
-  }
+@keyframes popStory {
+  from { transform: scale(0.7); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
 }
 
-@keyframes bounceIn {
-  0% {
-    transform: scale(0);
-    opacity: 0;
-  }
-  60% {
-    transform: scale(1.2);
-  }
-  100% {
-    transform: scale(1);
-    opacity: 1;
-  }
+@keyframes heroHop {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-16px); }
 }
 
-@keyframes snapSuccess {
-  0% {
-    transform: scale(1);
-  }
-  50% {
-    transform: scale(1.2);
-    box-shadow: 0 0 30px rgba(78, 205, 196, 0.6);
-  }
-  100% {
-    transform: scale(1.05);
-  }
+@keyframes sparkleTwinkle {
+  0%, 100% { transform: scale(0.4) rotate(0); opacity: 0.2; }
+  50% { transform: scale(1.3) rotate(180deg); opacity: 1; }
 }
 
-@keyframes pulse {
-  0%, 100% {
-    box-shadow: 0 0 0 0 rgba(255, 217, 61, 0.4);
-  }
-  50% {
-    box-shadow: 0 0 0 10px rgba(255, 217, 61, 0);
-  }
+.pop-snap {
+  animation: snapPop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
-@keyframes shake {
-  0%, 100% {
-    transform: translateX(0);
-  }
-  10%, 30%, 50%, 70%, 90% {
-    transform: translateX(-5px);
-  }
-  20%, 40%, 60%, 80% {
-    transform: translateX(5px);
-  }
-}
-
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
-@keyframes slideUp {
-  from {
-    transform: translateY(20px);
-    opacity: 0;
-  }
-  to {
-    transform: translateY(0);
-    opacity: 1;
-  }
-}
-
-@keyframes starPop {
-  0% {
-    transform: scale(0) rotate(0deg);
-    opacity: 0;
-  }
-  60% {
-    transform: scale(1.4) rotate(200deg);
-    opacity: 1;
-  }
-  100% {
-    transform: scale(1) rotate(360deg);
-    opacity: 1;
-  }
-}
-
-@keyframes confettiFall {
-  0% {
-    transform: translateY(0) rotate(0deg);
-    opacity: 1;
-  }
-  100% {
-    transform: translateY(500px) rotate(720deg);
-    opacity: 0;
-  }
-}
-
-/* Responsive Design */
-@media (max-width: 768px) {
-  .word-emoji {
-    font-size: 5.5rem;
-  }
-  
-  .word-label {
-    font-size: 2rem;
-  }
-  
-  .drop-slot {
-    width: 55px;
-    height: 65px;
-    font-size: 1.8rem;
-  }
-  
-  .draggable-letter,
-  .floating-letter {
-    width: 55px;
-    height: 65px;
-    font-size: 1.8rem;
-  }
-  
-  .sentence-text {
-    font-size: 1.8rem;
-  }
-  
-  .celebration-text {
-    font-size: 2.5rem;
-  }
+@keyframes snapPop {
+  0% { transform: scale(0.85); }
+  60% { transform: scale(1.22); }
+  100% { transform: scale(1); }
 }
 
 @media (max-width: 480px) {
   .word-emoji {
-    font-size: 4.5rem;
+    font-size: 4.2rem;
   }
-  
-  .word-label {
+  .word-label-text {
     font-size: 1.8rem;
   }
-  
-  .drop-slot {
-    width: 50px;
-    height: 58px;
+  .story-sentence {
     font-size: 1.6rem;
   }
-  
-  .draggable-letter,
-  .floating-letter {
-    width: 50px;
-    height: 58px;
-    font-size: 1.6rem;
+  .story-card {
+    padding: 1.8rem 1.2rem;
   }
-  
-  .drop-slots {
-    gap: 2.5rem;
-  }
-  
-  .draggable-letters {
-    gap: 0.5rem;
-  }
-  
-  .sentence-text {
-    font-size: 1.5rem;
-  }
-  
-  .celebration-text {
-    font-size: 2rem;
+  .scattered-area {
+    height: 180px;
   }
 }
 </style>

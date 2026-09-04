@@ -58,12 +58,14 @@ import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import Character from '../components/game/Character.vue'
 import VoiceSelector from '../components/common/VoiceSelector.vue'
+import { audioManager } from '../utils/audio'
 
 const router = useRouter()
 const characterState = ref<'idle' | 'happy' | 'jump'>('idle')
 
 // Handle character click
 const handleCharacterClick = () => {
+  audioManager.playPop()
   characterState.value = 'happy'
   setTimeout(() => {
     characterState.value = 'idle'
@@ -72,16 +74,19 @@ const handleCharacterClick = () => {
 
 // Start game
 const startGame = () => {
+  audioManager.playPop()
   router.push('/game')
 }
 
 // Go to collection
 const goToCollection = () => {
+  audioManager.playPop()
   router.push('/collection')
 }
 
 // Go to connect game
 const goToConnect = () => {
+  audioManager.playPop()
   router.push('/connect')
 }
 
@@ -199,6 +204,10 @@ onMounted(() => {
 
 .secondary-actions {
   margin-top: 1rem;
+  display: flex;
+  gap: 1.2rem;
+  justify-content: center;
+  flex-wrap: wrap;
 }
 
 .secondary-button {

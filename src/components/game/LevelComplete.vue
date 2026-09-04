@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="level-complete">
     <div class="complete-content">
       <div class="stars-container">
@@ -25,21 +25,31 @@
 </template>
 
 <script setup lang="ts">
+import { onMounted } from 'vue'
 import type { WordLevel } from '../../data/levels'
+import { audioManager } from '../../utils/audio'
 
 interface Props {
   word: WordLevel
 }
 
-defineProps<Props>()
+const props = defineProps<Props>()
 
 const emit = defineEmits<{
   next: []
 }>()
 
 const handleNext = () => {
+  audioManager.playPop()
   emit('next')
 }
+
+onMounted(() => {
+  audioManager.playStar(0)
+  setTimeout(() => audioManager.playStar(1), 200)
+  setTimeout(() => audioManager.playStar(2), 400)
+  setTimeout(() => audioManager.playWord(props.word.word), 600)
+})
 </script>
 
 <style scoped>

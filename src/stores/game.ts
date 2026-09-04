@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
+import { audioManager } from '../utils/audio'
 
 export const useGameStore = defineStore('game', () => {
   // State
@@ -32,6 +33,7 @@ export const useGameStore = defineStore('game', () => {
   
   function setSoundEnabled(enabled: boolean) {
     soundEnabled.value = enabled
+    audioManager.setSoundEnabled(enabled)
     saveProgress()
   }
   
@@ -68,6 +70,7 @@ export const useGameStore = defineStore('game', () => {
         soundEnabled.value = progress.soundEnabled !== false
         musicEnabled.value = progress.musicEnabled !== false
         selectedVoiceName.value = progress.selectedVoiceName || ''
+        audioManager.setSoundEnabled(soundEnabled.value)
       } catch (e) {
         console.error('Failed to load progress:', e)
       }

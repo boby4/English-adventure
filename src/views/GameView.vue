@@ -43,7 +43,7 @@ import { levels } from '../data/levels'
 const router = useRouter()
 const gameStore = useGameStore()
 
-const soundEnabled = ref(true)
+const soundEnabled = computed(() => gameStore.soundEnabled)
 const showLevelComplete = ref(false)
 
 // Computed properties
@@ -58,8 +58,7 @@ const goHome = () => {
 
 // Toggle sound
 const toggleSound = () => {
-  soundEnabled.value = !soundEnabled.value
-  gameStore.setSoundEnabled(soundEnabled.value)
+  gameStore.setSoundEnabled(!soundEnabled.value)
 }
 
 // Handle word completion

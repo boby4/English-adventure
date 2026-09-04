@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="collection-view">
     <!-- Top Bar -->
     <div class="top-bar">
@@ -82,6 +82,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useGameStore } from '../stores/game'
 import { levels, categories, type Category } from '../data/levels'
+import { audioManager } from '../utils/audio'
 
 const router = useRouter()
 const gameStore = useGameStore()
@@ -126,7 +127,9 @@ const isWordLearned = (wordId: string) => {
 
 // Handle word click
 const handleWordClick = (word: any) => {
+  audioManager.playPop()
   selectedWord.value = word
+  audioManager.playWord(word.word)
 }
 
 // Close modal
@@ -136,23 +139,13 @@ const closeModal = () => {
 
 // Play word pronunciation
 const playWord = (word: string) => {
-  if ('speechSynthesis' in window) {
-    const speakWord = word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
-    speechSynthesis.cancel()
-    const utterance = new SpeechSynthesisUtterance(speakWord)
-    utterance.lang = 'en-US'
-    utterance.rate = 0.7
-    utterance.pitch = 1.0
-    utterance.volume = 1.0
-    speechSynthesis.speak(utterance)
-  }
+  audioManager.playWord(word)
 }
 
 // Replay a learned word
 const replayWord = (word: any) => {
-  console.log('Replay word called:', word)
+  audioManager.playPop()
   const levelIndex = levels.findIndex(l => l.id === word.id)
-  console.log('Level index:', levelIndex)
   if (levelIndex >= 0) {
     gameStore.setCurrentLevel(levelIndex)
     gameStore.isReplayMode = true
@@ -163,6 +156,7 @@ const replayWord = (word: any) => {
 
 // Go back to home
 const goHome = () => {
+  audioManager.playPop()
   router.push('/')
 }
 
